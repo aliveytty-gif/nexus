@@ -1,0 +1,2 @@
+# Portable project identifier. Hosted project linkage stays in ignored .temp/.
+project_id = "nexus"
