@@ -76,8 +76,9 @@ npm ci
 
 1. Создайте учётную запись на [supabase.com](https://supabase.com/).
 2. В [Dashboard](https://supabase.com/dashboard) создайте проект, задайте название, регион и надёжный пароль базы данных.
-3. Дождитесь завершения создания проекта.
-4. В настройках подключения/API найдите **Project URL** и **publishable key**.
+3. В форме создания включите **Enable Data API** и автоматический RLS (**automatic RLS**), отключите **Automatically expose new tables**. Миграция NEXUS явно задаёт разрешения API и политики доступа для своих таблиц.
+4. Дождитесь завершения создания проекта.
+5. В настройках подключения/API найдите **Project URL** и **publishable key**.
 
 Пароль PostgreSQL и `service_role`/secret key приложению не нужны. Публичный ключ используется вместе с RLS: он не даёт права обходить политики доступа.
 
@@ -155,17 +156,21 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
    http://localhost:3000/auth/confirm
    ```
 
-5. В **Authentication → Email Templates → Confirm signup** настройте ссылку подтверждения на серверный маршрут приложения:
+5. Если в **Authentication → Email Templates → Confirm signup** доступен редактор, например после подключения custom SMTP, можно настроить ссылку подтверждения на серверный маршрут приложения:
 
    ```html
    <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/profile/edit">Подтвердить email для NEXUS</a>
    ```
 
-Маршрут `/auth/confirm` проверяет одноразовый `token_hash` через Supabase и сохраняет сессию в cookie. `/auth/callback` предусмотрен для обмена PKCE-кода на сессию. Не помещайте `token_hash`, коды подтверждения и cookie в логи или публичные сообщения.
+Если Dashboard показывает **Set up custom SMTP to edit templates**, оставьте стандартный шаблон со ссылкой `{{ .ConfirmationURL }}`. При регистрации NEXUS передаёт адрес `/auth/callback?next=/profile/edit`; этот маршрут обменивает полученный PKCE-код на сессию. Открывайте письмо на том же устройстве и в том же браузере, где регистрировались, сохранив cookie приложения: они нужны для [обмена PKCE-кода](https://supabase.com/docs/guides/auth/sessions/pkce-flow).
+
+Пользовательский шаблон выше использует `/auth/confirm`: маршрут проверяет одноразовый `token_hash` через Supabase и сохраняет сессию в cookie. Не помещайте `token_hash`, коды подтверждения и cookie в логи или публичные сообщения.
 
 Настройки шаблона и разрешённых URL находятся в Supabase, а не в коде приложения: при создании нового проекта задайте их заново. Подробнее: [password-based auth](https://supabase.com/docs/guides/auth/passwords), [SSR с Next.js](https://supabase.com/docs/guides/auth/server-side/nextjs), [redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls).
 
-Письма отправляет Supabase. Ограничения отправки зависят от конфигурации проекта; если реальное письмо не приходит, проверьте Auth Logs, настройки почты и раздел спама. Не считайте регистрацию проверенной до получения письма и успешного подтверждения.
+Встроенный SMTP Supabase предназначен для тестов и отправляет письма только на адреса участников команды организации (**Organization → Team**). Для регистрации студентов с другими адресами настройте **custom SMTP** по [официальной инструкции Supabase](https://supabase.com/docs/guides/auth/auth-smtp). Подтверждение email оставьте включённым.
+
+Если реальное письмо не приходит, проверьте допустимость адреса для выбранного SMTP, Auth Logs, настройки почты и раздел спама. Не считайте регистрацию проверенной до получения письма и успешного подтверждения.
 
 Для будущего допуска только по корпоративной почте потребуется серверное ограничение регистрации на стороне Supabase Auth. Одной проверки домена в форме недостаточно: API Auth можно вызвать напрямую.
 
