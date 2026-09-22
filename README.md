@@ -174,6 +174,17 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 Для будущего допуска только по корпоративной почте потребуется серверное ограничение регистрации на стороне Supabase Auth. Одной проверки домена в форме недостаточно: API Auth можно вызвать напрямую.
 
+### Необязательный пример: Brevo SMTP
+
+В Brevo подтвердите адрес отправителя и откройте **SMTP & API → SMTP**. В Supabase **Authentication → Email → SMTP Settings** включите custom SMTP и заполните:
+
+- **Sender email / Sender name:** подтверждённый адрес отправителя и `NEXUS`.
+- **Host / Port:** `smtp-relay.brevo.com` и `587`.
+- **Username:** SMTP login из кабинета Brevo.
+- **Password:** отдельный SMTP key Brevo; API key для этого поля не подходит.
+
+Сохраните настройки и проверьте настоящее письмо регистрации. SMTP key вводится только в настройки SMTP проекта Supabase; приложению он не нужен. Не добавляйте его в `.env.local`, исходники, Git или ZIP. Подробности подключения — в [инструкции Brevo SMTP](https://help.brevo.com/hc/en-us/articles/7924908994450-Send-transactional-emails-using-Brevo-SMTP).
+
 ## 6. Запустите приложение
 
 ```sh
