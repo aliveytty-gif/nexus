@@ -5,6 +5,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { displayName, formatDate } from "@/lib/format";
 import { isStorageImage } from "@/lib/storage";
 import type { FeedPost } from "./data";
+import { LikeButton } from "./like-button";
 export function PostCard({
   post,
   detail = false,
@@ -27,6 +28,7 @@ export function PostCard({
             <span className="post-author">{name}</span>
           )}
           <div className="post-meta">
+            {post.community && <Link href={`/communities/${post.community.id}`}>{post.community.name}</Link>}
             {author?.group_name && (
               <>
                 <span>{author.group_name}</span>
@@ -46,6 +48,7 @@ export function PostCard({
         unoptimized={!isStorageImage(post.image_url)}
         style={{ width: "100%", height: "auto", maxHeight: 520, objectFit: "contain", borderRadius: 12 }} />}
       <footer className="post-footer">
+        <LikeButton postId={post.id} liked={post.my_like.length > 0} count={post.likes[0]?.count ?? 0} />
         <Link href={`/posts/${post.id}#comments`}>
           <MessageCircle size={18} />
           Комментарии · {post.comments[0]?.count ?? 0}

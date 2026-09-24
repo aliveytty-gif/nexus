@@ -1,4 +1,4 @@
-// Schema contract through 202609230001_closed_alpha.sql.
+// Schema contract through 202609240001_social_mvp.sql.
 // Regenerate from your Supabase project after changing migrations (see README).
 export type Json =
   | string
@@ -59,6 +59,7 @@ export type Database = {
           author_id: string;
           content: string;
           image_url: string | null;
+          community_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -67,6 +68,7 @@ export type Database = {
           author_id: string;
           content: string;
           image_url?: string | null;
+          community_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -75,6 +77,7 @@ export type Database = {
           author_id?: string;
           content?: string;
           image_url?: string | null;
+          community_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -82,6 +85,108 @@ export type Database = {
           {
             foreignKeyName: "posts_author_id_fkey";
             columns: ["author_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "posts_community_id_fkey";
+            columns: ["community_id"];
+            isOneToOne: false;
+            referencedRelation: "communities";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      post_likes: {
+        Row: { post_id: string; user_id: string; created_at: string };
+        Insert: { post_id: string; user_id: string; created_at?: string };
+        Update: { post_id?: string; user_id?: string; created_at?: string };
+        Relationships: [
+          {
+            foreignKeyName: "post_likes_post_id_fkey";
+            columns: ["post_id"];
+            isOneToOne: false;
+            referencedRelation: "posts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "post_likes_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      communities: {
+        Row: {
+          id: string;
+          name: string;
+          description: string;
+          avatar_url: string | null;
+          type: "group" | "channel";
+          owner_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string;
+          avatar_url?: string | null;
+          type: "group" | "channel";
+          owner_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          description?: string;
+          avatar_url?: string | null;
+          type?: "group" | "channel";
+          owner_id?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "communities_owner_id_fkey";
+            columns: ["owner_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      community_members: {
+        Row: {
+          community_id: string;
+          user_id: string;
+          role: "owner" | "admin" | "member";
+          joined_at: string;
+        };
+        Insert: {
+          community_id: string;
+          user_id: string;
+          role?: "owner" | "admin" | "member";
+          joined_at?: string;
+        };
+        Update: {
+          community_id?: string;
+          user_id?: string;
+          role?: "owner" | "admin" | "member";
+          joined_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "community_members_community_id_fkey";
+            columns: ["community_id"];
+            isOneToOne: false;
+            referencedRelation: "communities";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "community_members_user_id_fkey";
+            columns: ["user_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];
@@ -121,6 +226,10 @@ export type Database = {
           conversation_id: string;
           sender_id: string;
           body: string;
+          attachment_path: string | null;
+          attachment_name: string | null;
+          attachment_type: string | null;
+          attachment_size: number | null;
           created_at: string;
         };
         Insert: {
@@ -128,6 +237,10 @@ export type Database = {
           conversation_id: string;
           sender_id: string;
           body: string;
+          attachment_path?: string | null;
+          attachment_name?: string | null;
+          attachment_type?: string | null;
+          attachment_size?: number | null;
           created_at?: string;
         };
         Update: {
@@ -135,6 +248,10 @@ export type Database = {
           conversation_id?: string;
           sender_id?: string;
           body?: string;
+          attachment_path?: string | null;
+          attachment_name?: string | null;
+          attachment_type?: string | null;
+          attachment_size?: number | null;
           created_at?: string;
         };
         Relationships: [
@@ -226,6 +343,18 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
+      create_community: {
+        Args: { p_name: string; p_description: string; p_type: "group" | "channel"; p_avatar_url: string | null };
+        Returns: string;
+      };
+      can_publish_to_community: {
+        Args: { p_community_id: string };
+        Returns: boolean;
+      };
+      can_access_message_file: {
+        Args: { p_path: string; p_own: boolean };
+        Returns: boolean;
+      };
       get_or_create_direct_conversation: {
         Args: { p_other_user_id: string };
         Returns: string;
@@ -256,6 +385,9 @@ export type Database = {
 
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Post = Database["public"]["Tables"]["posts"]["Row"];
+export type PostLike = Database["public"]["Tables"]["post_likes"]["Row"];
+export type Community = Database["public"]["Tables"]["communities"]["Row"];
+export type CommunityMember = Database["public"]["Tables"]["community_members"]["Row"];
 export type Conversation = Database["public"]["Tables"]["conversations"]["Row"];
 export type Message = Database["public"]["Tables"]["messages"]["Row"];
 export type Comment = Database["public"]["Tables"]["comments"]["Row"];

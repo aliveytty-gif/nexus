@@ -13,11 +13,29 @@
 - Редактирование собственного профиля. Интересы выбираются из общего каталога и хранятся отдельно от профиля.
 - `/feed`: текстовые публикации, авторы, даты, переходы в профили, хронологическая выдача с пагинацией.
 - Страница публикации с комментариями и удалением собственных комментариев.
-- `/messages`, `/map`, `/ai`: страницы «Раздел находится в разработке».
+- `/messages`: личные диалоги; `/map` и `/ai` остаются заглушками.
 - SQL-миграция со связями, ограничениями и Row Level Security (RLS).
 - Адаптивный интерфейс, состояния пустых списков, ошибок и отсутствующей настройки Supabase.
 
-Загрузка файлов пока не реализована: аватар задаётся HTTPS-ссылкой на изображение. Личные сообщения, карта и AI пока представлены только точками расширения.
+Аватары и фото постов загружаются с устройства. Актуальный статус функций и deployment — в `PROJECT_STATE.md`.
+
+## Development
+
+Репозиторий: https://github.com/aliveytty-gif/nexus (private).
+
+```sh
+git clone https://github.com/aliveytty-gif/nexus.git
+cd nexus
+npm ci
+cp .env.example .env.local
+npm run dev
+```
+
+В `.env.local` нужны `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; для локального Auth укажите `NEXT_PUBLIC_SITE_URL=http://localhost:3000`. Получайте настройки у владельца проекта, не коммитьте файл. Для новых разработчиков предпочтителен отдельный тестовый Supabase-проект; применение миграций к production согласуется с владельцем. Preview по умолчанию не изолирует данные общей БД.
+
+Рабочий цикл: `git switch main` → `git pull --ff-only` → `git switch -c feature/<short-name>` → небольшая правка → `npm run typecheck`, `npm run lint`, связанные тесты, `npm run build` → commit → `git push -u origin feature/<short-name>` → Pull Request. Проверка GitHub Actions `build` запускается для PR. Сливайте только проверенную ветку; незаконченная работа не попадает в `main`.
+
+Production: https://nexus-chi-khaki-43.vercel.app. Целевая схема Vercel: `main` → production, feature/PR → preview. Доступность Git integration и защиты ветки отмечена в `PROJECT_STATE.md`; при отсутствии защиты соблюдение PR-процесса остаётся обязанностью участников. Добавление участников: GitHub Settings → Collaborators, приглашать только согласованных разработчиков.
 
 ## Стек
 
