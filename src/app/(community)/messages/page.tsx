@@ -18,11 +18,14 @@ export default async function MessagesPage({ searchParams }: {
   const query = await searchParams;
   const selectedId = typeof query.conversation === "string" ? query.conversation.toLowerCase() : undefined;
   if (selectedId && !UUID_PATTERN.test(selectedId)) notFound();
-  const conversations = await getConversations(user.id);
+  const page = pageNumber(query.page);
+  // Both queries are scoped to the current user by RLS.
+  const [conversations, thread] = await Promise.all([
+    getConversations(user.id),
+    selectedId ? getConversationMessages(selectedId, page) : Promise.resolve(null),
+  ]);
   const selected = conversations.find((conversation) => conversation.id === selectedId);
   if (selectedId && !selected) notFound();
-  const page = pageNumber(query.page);
-  const thread = selected ? await getConversationMessages(selected.id, page) : null;
   const participant = selected?.participant;
   const name = participant ? displayName(participant) : "Участник недоступен";
   return (

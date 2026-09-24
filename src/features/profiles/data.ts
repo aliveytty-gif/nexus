@@ -38,16 +38,22 @@ export const getProfileById = cache(
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select("*, profile_interests(interest:interests(id, slug, name))")
       .eq("id", id)
       .maybeSingle();
     if (error)
       throw new Error(
         "Не удалось загрузить профиль. Проверьте подключение и миграции Supabase.",
       );
-    return data
-      ? { ...data, interests: await getProfileInterests(data.id) }
-      : null;
+    if (!data) return null;
+    const { profile_interests, ...profile } = data;
+    return {
+      ...profile,
+      interests: profile_interests
+        .map((row) => row.interest)
+        .filter((interest): interest is Interest => Boolean(interest))
+        .sort((a, b) => a.name.localeCompare(b.name, "ru")),
+    };
   },
 );
 
@@ -57,13 +63,19 @@ export const getProfileByUsername = cache(
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select("*, profile_interests(interest:interests(id, slug, name))")
       .eq("username", username)
       .maybeSingle();
     if (error) throw new Error("Не удалось загрузить профиль.");
-    return data
-      ? { ...data, interests: await getProfileInterests(data.id) }
-      : null;
+    if (!data) return null;
+    const { profile_interests, ...profile } = data;
+    return {
+      ...profile,
+      interests: profile_interests
+        .map((row) => row.interest)
+        .filter((interest): interest is Interest => Boolean(interest))
+        .sort((a, b) => a.name.localeCompare(b.name, "ru")),
+    };
   },
 );
 

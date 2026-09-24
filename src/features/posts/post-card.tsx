@@ -3,6 +3,7 @@ import Image from "next/image";
 import { MessageCircle, ArrowUpRight } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { displayName, formatDate } from "@/lib/format";
+import { isStorageImage } from "@/lib/storage";
 import type { FeedPost } from "./data";
 export function PostCard({
   post,
@@ -40,7 +41,9 @@ export function PostCard({
       </header>
       <p className="post-body">{post.content}</p>
       {post.image_url && <Image src={post.image_url} alt="Фотография к публикации"
-        width={1200} height={800} unoptimized
+        width={1200} height={800}
+        sizes="(max-width: 600px) calc(100vw - 70px), (max-width: 800px) calc(100vw - 270px), (max-width: 1150px) calc(100vw - 340px), 710px"
+        unoptimized={!isStorageImage(post.image_url)}
         style={{ width: "100%", height: "auto", maxHeight: 520, objectFit: "contain", borderRadius: 12 }} />}
       <footer className="post-footer">
         <Link href={`/posts/${post.id}#comments`}>

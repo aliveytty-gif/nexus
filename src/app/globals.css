@@ -904,7 +904,9 @@ textarea.input {
   margin-top: 16px;
 }
 .profile-cover {
-  background: linear-gradient(90deg, #0a0c18bb, #0a0c1822 50%, #0a0c18bb), url("/nexus-artwork.png") center 47% / cover;
+  position: relative;
+  overflow: hidden;
+  background: #0a0c18;
   color: #fff;
   padding: 24px 30px;
   height: 155px;
@@ -912,7 +914,22 @@ textarea.input {
   align-items: center;
   justify-content: space-between;
 }
-.profile-cover span:first-child {
+.profile-cover-image {
+  object-fit: cover;
+  object-position: center 47%;
+}
+.profile-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, #0a0c18bb, #0a0c1822 50%, #0a0c18bb);
+  pointer-events: none;
+}
+.profile-cover span {
+  position: relative;
+  z-index: 1;
+}
+.profile-cover span:first-of-type {
   font-size: 0.72rem;
   font-weight: 600;
   line-height: 1;

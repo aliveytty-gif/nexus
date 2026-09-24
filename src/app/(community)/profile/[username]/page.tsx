@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
@@ -46,6 +47,9 @@ export default async function ProfilePage({
       )}
       <article className="card profile-card">
         <div className="profile-cover" aria-hidden="true">
+          <Image src="/nexus-artwork.png" alt="" fill
+            sizes="(max-width: 600px) 100vw, (max-width: 1150px) 70vw, 790px"
+            className="profile-cover-image" />
           <span>NEXUS / COMMUNITY</span>
           <span>На одной волне.</span>
         </div>

@@ -4,16 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function getConversations(userId: string) {
   const supabase = await createClient();
-  const { data: memberships, error: membershipError } = await supabase
-    .from("conversation_members")
-    .select("conversation_id")
-    .eq("user_id", userId);
-  if (membershipError) throw new Error("Не удалось загрузить диалоги. Проверьте миграции Supabase.");
-  if (!memberships.length) return [];
+  // RLS returns only conversations belonging to the authenticated session.
   const { data, error } = await supabase
     .from("conversations")
     .select("id, created_at, members:conversation_members(user_id, profile:profiles(id, username, first_name, last_name, avatar_url)), messages(body, created_at)")
-    .in("id", memberships.map((member) => member.conversation_id))
     .order("created_at", { referencedTable: "messages", ascending: false })
     .limit(1, { referencedTable: "messages" });
   if (error) throw new Error("Не удалось загрузить диалоги.");

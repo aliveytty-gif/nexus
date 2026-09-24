@@ -11,6 +11,19 @@ const extensions: Record<string, string> = {
   "image/webp": "webp",
 };
 
+/** Only our public buckets are allowed through the Next.js image optimizer. */
+export function isStorageImage(url: string): boolean {
+  const config = getSupabaseConfig();
+  if (!config) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.origin === config.url && !parsed.search &&
+      /^\/storage\/v1\/object\/public\/(avatars|post-media)\//.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
+
 export function validateImage(file: File): string | null {
   if (!extensions[file.type]) return "Выберите JPG, PNG или WEBP.";
   if (!file.size || file.size > IMAGE_MAX_BYTES)

@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import { useState } from "react";
+import { isStorageImage } from "@/lib/storage";
 
 export function Avatar({
   name,
@@ -30,7 +31,8 @@ export function Avatar({
           alt=""
           width={pixels}
           height={pixels}
-          unoptimized
+          sizes={`${pixels}px`}
+          unoptimized={!isStorageImage(safeUrl)}
           referrerPolicy="no-referrer"
           onError={() => setFailedUrl(safeUrl)}
         />
