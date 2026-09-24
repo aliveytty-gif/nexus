@@ -11,17 +11,16 @@
 
 ## Deployment
 
-Production URL пока отсутствует. Автоматический Vercel connector вернул `Tool deploy_to_vercel not found`; CLI не авторизован. Проект подготовлен: `.vercelignore`, публичные env, HTTPS production-domain fallback вместо localhost на Vercel.
+Production URL: **https://nexus-chi-khaki-43.vercel.app**. Vercel CLI подтвердил `production / Ready`, deployment `dpl_B7qzxfPGv15isKv714sMTS9daT4s`. Главная страница и `/login` открыты в браузере без входа в Vercel. Адрес отдельной сборки `nexus-47msl0wls-zvwcpf72q6-4901.vercel.app` требует Vercel Authentication; тестировщикам передавать постоянный Production URL выше.
+
+Supabase Site URL изменён на постоянный домен; три production redirect URL сохранены. Существующие localhost redirects сохранены. Подтверждено в интерфейсе Supabase. Вход пользователя в NEXUS на production пока ожидается.
 
 На текущем Mac подготовлен `../../work/deploy-nexus-v02.command`: запускается через `bash`, выполняет Vercel login и production deploy. Берёт только `NEXT_PUBLIC_SUPABASE_URL` и `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` из игнорируемого `.env.local`, передаёт их сборке и приложению. `NEXT_PUBLIC_SITE_URL` с localhost не переносится; используется `VERCEL_PROJECT_PRODUCTION_URL`. Для повторных CLI-публикаций использовать тот же launcher. Основание параметров: [Vercel CLI deploy](https://vercel.com/docs/cli/deploy).
 
-После публикации:
-1. Взять постоянный Production URL в Vercel → Project → Domains.
-2. В Supabase → Authentication → URL Configuration поставить этот адрес в Site URL; добавить `<URL>/auth/confirm`, `<URL>/auth/callback`, `<URL>/auth/callback?next=/profile/edit`. Сохранить существующие localhost Redirect URLs.
-3. Проверить с двух аккаунтов: регистрация, подтверждение, вход/выход, аватар, пост с фото, сообщение и ответ.
+Следующая проверка с двумя аккаунтами: регистрация, подтверждение, вход/выход, аватар, пост с фото, сообщение и ответ.
 
 ## Known issues / непроверенное
 
-- Публичная публикация и production Auth ещё не проверены: требуется вход владельца в Vercel.
+- Публичная публикация подтверждена; production Auth ещё не проверен после входа пользователя.
 - Полный браузерный сценарий v0.2 с двумя подтверждёнными аккаунтами ещё не выполнен.
 - Выбранное фото незавершённого поста может остаться в Storage при закрытии страницы.
