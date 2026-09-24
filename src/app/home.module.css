@@ -1,0 +1,196 @@
+.landing {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 40px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 96px;
+  border-bottom: 1px solid var(--border);
+}
+
+.navigation, .actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.artwork {
+  position: relative;
+  aspect-ratio: 2.3;
+  margin: 0 -20px;
+  background: #000;
+  isolation: isolate;
+  mask-image: linear-gradient(transparent, #000 10%, #000 85%, transparent);
+}
+
+.artworkImage { object-fit: cover; }
+
+.introduction {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 60px;
+  align-items: end;
+  padding: 28px 0 80px;
+}
+
+.eyebrow, .sectionLabel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #b4b9d5;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .16em;
+}
+
+.eyebrow > span {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #969aff;
+  box-shadow: 0 0 14px #7c83ff;
+}
+
+.introduction h1 {
+  margin: 24px 0 0;
+  font-size: clamp(34px, 4.4vw, 58px);
+  line-height: 1.08;
+  font-weight: 600;
+  letter-spacing: -.055em;
+}
+
+.introduction h1 span {
+  color: #a9adff;
+  background: linear-gradient(100deg, #d2d7ff, #9699ff 70%, #c4a7ee);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.heroCopy {
+  max-width: 450px;
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.footnote {
+  margin: 20px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.community {
+  padding: 28px 32px 36px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: radial-gradient(ellipse at 100% 0%, #24244765, transparent 70%), var(--surface);
+}
+
+.sectionLabel { justify-content: space-between; }
+.sectionLabel svg { color: #9b9dff; }
+
+.communityContent {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 80px;
+  margin-top: 36px;
+}
+
+.community h2 {
+  margin: 0 0 16px;
+  font-size: clamp(26px, 3vw, 38px);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -.04em;
+}
+
+.community p, .feature p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.tags span {
+  padding: 6px 12px;
+  color: #c9cbe2;
+  background: #c4c8ff07;
+  border: 1px solid #c4c8ff24;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.conversation {
+  align-self: center;
+  padding-left: 36px;
+  border-left: 1px solid var(--border);
+}
+
+.conversation > svg { color: #a9adff; }
+.conversation h3 { margin: 18px 0 10px; font-size: 19px; font-weight: 500; }
+
+.previewFooter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 28px;
+  color: #b8bbce;
+  font-size: 12px;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 40px;
+  padding: 48px 0;
+}
+
+.feature { display: flex; gap: 16px; }
+.feature > svg { flex-shrink: 0; color: #a9adff; margin-top: 2px; }
+.feature h3 { margin: 0 0 8px; font-size: 16px; font-weight: 500; }
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 0 32px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .landing { padding: 0 20px; }
+  .header { min-height: 80px; gap: 12px; flex-wrap: wrap; padding: 16px 0; }
+  .navigation { gap: 6px; }
+  .navigation :global(.button) { padding: 9px 12px; font-size: 12px; }
+  .artwork { margin: 12px -20px 0; aspect-ratio: 2; }
+  .introduction { grid-template-columns: 1fr; gap: 28px; padding: 20px 0 44px; }
+  .introduction h1 { font-size: clamp(34px, 7vw, 48px); }
+  .heroCopy { max-width: 100%; font-size: 15px; }
+  .community { padding: 24px; border-radius: 20px; }
+  .communityContent { grid-template-columns: 1fr; gap: 32px; margin-top: 28px; }
+  .conversation { border-left: 0; border-top: 1px solid var(--border); padding: 28px 0 0; }
+  .features { grid-template-columns: 1fr; gap: 28px; padding: 36px 4px; }
+  .footer { flex-direction: column; gap: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing *, .landing *::before, .landing *::after { animation: none; transition: none; }
+}

@@ -5,7 +5,7 @@
 .list { padding: 10px; min-width: 0; }
 .list h2 { padding: 12px; font-size: 1rem; }
 .conversation { display: flex; gap: 10px; padding: 14px 12px; border-radius: 10px; }
-.conversation:hover, .active { background: #eaf0ff; }
+.conversation:hover, .active { background: #252942; }
 .summary { min-width: 0; }
 .summary strong, .summary p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .summary strong { display: block; font-size: .92rem; }
@@ -16,8 +16,8 @@
 .threadHeader p { font-size: .82rem; }
 .back { display: none; }
 .messages { display: flex; flex-direction: column; gap: 16px; margin: 24px 0; padding: 0; list-style: none; }
-.message { align-self: flex-start; max-width: 90%; padding: 12px 15px; border-radius: 13px; background: #f0f3f8; overflow-wrap: anywhere; }
-.mine { align-self: flex-end; background: #e7edff; }
+.message { align-self: flex-start; max-width: 90%; padding: 12px 15px; border-radius: 13px; background: #1b2031; overflow-wrap: anywhere; }
+.mine { align-self: flex-end; background: #33335c; }
 .message p { white-space: pre-wrap; }
 .message time { display: block; color: var(--muted); font-size: .7rem; margin-top: 7px; }
 .empty { padding: 38px 18px; text-align: center; color: var(--muted); }

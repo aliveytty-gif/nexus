@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowUpRight,
   BookOpen,
@@ -8,16 +9,17 @@ import {
 } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { getCurrentUser } from "@/lib/auth/session";
+import styles from "./home.module.css";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const user = await getCurrentUser();
   return (
-    <div className="landing">
-      <header className="landing-header">
+    <div className={styles.landing}>
+      <header className={styles.header}>
         <Brand />
-        <nav className="landing-nav" aria-label="Аккаунт">
+        <nav className={styles.navigation} aria-label="Аккаунт">
           {user ? (
             <Link className="button button-primary" href="/feed">
               Открыть ленту <ArrowUpRight size={16} />
@@ -34,47 +36,62 @@ export default async function HomePage() {
           )}
         </nav>
       </header>
-      <main id="main" className="landing-main">
-        <section className="hero">
-          <div>
-            <span className="hero-eyebrow">ТВОЁ СООБЩЕСТВО КОЛЛЕДЖА</span>
-            <h1>
-              Большой колледж.
-              <br />
-              <span>Близкие люди.</span>
-            </h1>
-            <p className="hero-copy">
-              За пределами твоей группы — люди с теми же интересами. Знакомься,
-              делись идеями и будь частью жизни колледжа.
-            </p>
-            <div className="hero-actions">
-              <Link
-                href={user ? "/feed" : "/register"}
-                className="button button-primary"
-              >
-                {user ? "Перейти в ленту" : "Присоединиться"}
-                <ArrowUpRight size={18} />
-              </Link>
-              {!user && (
-                <Link href="/login" className="button button-secondary">
-                  У меня есть аккаунт
-                </Link>
-              )}
-            </div>
-            <p className="hero-footnote">
-              Для студентов и преподавателей. В одном месте.
-            </p>
+      <main id="main">
+        <section>
+          <div className={styles.artwork}>
+            <Image
+              src="/nexus-artwork.png"
+              alt="NEXUS — твой колледж в одном пространстве"
+              fill
+              priority
+              sizes="(max-width: 1200px) 100vw, 1200px"
+              className={styles.artworkImage}
+            />
           </div>
-          <div className="community-preview">
-            <div className="preview-top">
-              <span className="eyebrow">Внутри NEXUS</span>
-              <span>Место для своих</span>
+          <div className={styles.introduction}>
+            <div>
+              <span className={styles.eyebrow}>
+                <span /> ТВОЁ СООБЩЕСТВО КОЛЛЕДЖА
+              </span>
+              <h1>
+                Большой колледж.
+                <br />
+                <span>Близкие люди.</span>
+              </h1>
             </div>
-            <div className="preview-note">
-              <div className="preview-icon">
-                <Users size={24} />
+            <div>
+              <p className={styles.heroCopy}>
+                За пределами твоей группы — люди с теми же интересами. Знакомься,
+                делись идеями и будь частью жизни колледжа.
+              </p>
+              <div className={styles.actions}>
+                <Link
+                  href={user ? "/feed" : "/register"}
+                  className="button button-primary"
+                >
+                  {user ? "Перейти в ленту" : "Присоединиться"}
+                  <ArrowUpRight size={18} />
+                </Link>
+                {!user && (
+                  <Link href="/login" className="button button-secondary">
+                    У меня есть аккаунт
+                  </Link>
+                )}
               </div>
-              <h2>
+              <p className={styles.footnote}>
+                Для студентов и преподавателей. В одном месте.
+              </p>
+            </div>
+          </div>
+        </section>
+        <section className={styles.community} aria-labelledby="community-title">
+          <div className={styles.sectionLabel}>
+            <span>01 / ВНУТРИ NEXUS</span>
+            <Sparkles size={20} aria-hidden="true" />
+          </div>
+          <div className={styles.communityContent}>
+            <div>
+              <h2 id="community-title">
                 Общее начинается
                 <br />с интереса.
               </h2>
@@ -82,47 +99,45 @@ export default async function HomePage() {
                 Музыка, код или кино — расскажи, что тебе близко, в своём
                 профиле.
               </p>
-              <div className="tags">
+              <div className={styles.tags}>
                 {["музыка", "программирование", "дизайн", "спорт", "кино"].map(
                   (tag) => (
-                    <span key={tag} className="tag">
+                    <span key={tag}>
                       #{tag}
                     </span>
                   ),
                 )}
               </div>
             </div>
-            <div className="preview-note">
-              <div className="row">
-                <MessagesSquare size={20} color="#2456e8" />
-                <h3>Разговор начинается с тебя</h3>
-              </div>
-              <p style={{ marginTop: 10 }}>
+            <div className={styles.conversation}>
+              <MessagesSquare size={28} aria-hidden="true" />
+              <h3>Разговор начинается с тебя</h3>
+              <p>
                 Поделись идеей в ленте. Поддержи обсуждение в комментариях.
               </p>
-            </div>
-            <div className="preview-footer">
-              <BookOpen size={16} />
-              <span>Разные группы. Один колледж.</span>
+              <div className={styles.previewFooter}>
+                <BookOpen size={16} />
+                <span>Разные группы. Один колледж.</span>
+              </div>
             </div>
           </div>
         </section>
-        <section className="feature-strip" aria-label="Возможности платформы">
-          <div className="feature-item">
+        <section className={styles.features} aria-label="Возможности платформы">
+          <div className={styles.feature}>
             <MessagesSquare size={24} />
             <div>
               <h3>Общая лента</h3>
               <p>Идеи, вопросы и новости от людей рядом.</p>
             </div>
           </div>
-          <div className="feature-item">
+          <div className={styles.feature}>
             <Users size={24} />
             <div>
               <h3>Твой профиль</h3>
               <p>Чуть больше о тебе, чем номер группы.</p>
             </div>
           </div>
-          <div className="feature-item">
+          <div className={styles.feature}>
             <Sparkles size={24} />
             <div>
               <h3>Точки пересечения</h3>
@@ -131,7 +146,7 @@ export default async function HomePage() {
           </div>
         </section>
       </main>
-      <footer className="landing-footer">
+      <footer className={styles.footer}>
         <span>NEXUS · Сообщество колледжа</span>
         <span>Сделано для общения, открыто для идей.</span>
       </footer>

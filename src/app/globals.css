@@ -1,27 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f5f7fb;
-  --foreground: #16223b;
-  --muted: #647087;
-  --border: #e3e8f0;
-  --primary: #2456e8;
-  --primary-hover: #1843c3;
-  --surface: #fff;
+  --background: #07080d;
+  color-scheme: dark;
+  --foreground: #f0f1f8;
+  --muted: #9a9fb6;
+  --border: #282b40;
+  --primary: #7c83ff;
+  --primary-hover: #a8acff;
+  --surface: #10121d;
 }
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: Arial, Helvetica, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 * {
   box-sizing: border-box;
 }
 body {
   margin: 0;
-  background: var(--background);
+  background: radial-gradient(ellipse at 90% 0%, #17172b 0, transparent 45%), var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
@@ -87,7 +88,7 @@ svg {
   top: -100px;
   padding: 12px 18px;
   z-index: 100;
-  background: white;
+  background: var(--surface);
   border: 2px solid var(--primary);
   border-radius: 8px;
 }
@@ -97,32 +98,24 @@ svg {
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 11px;
-  font-size: 1.27rem;
-  font-weight: 800;
-  letter-spacing: 0.075em;
+  flex-shrink: 0;
+  border-radius: 8px;
 }
-.brand-symbol {
+.brand-artwork {
   position: relative;
-  display: grid;
-  place-items: center;
-  background: var(--primary);
-  width: 37px;
-  height: 37px;
-  border-radius: 11px;
-  color: white;
-  font-size: 2rem;
-  font-weight: 800;
-  letter-spacing: -0.12em;
-  padding-right: 5px;
-  line-height: 1;
-  padding-bottom: 5px;
+  display: block;
+  width: 164px;
+  height: 44px;
+  overflow: hidden;
+  mix-blend-mode: screen;
 }
-.brand-symbol span {
-  color: #c5ee76;
+.brand-artwork img {
   position: absolute;
-  right: 6px;
-  top: -3px;
+  width: 176px;
+  max-width: none;
+  height: auto;
+  left: -6px;
+  top: -32px;
 }
 .button {
   display: inline-flex;
@@ -136,21 +129,24 @@ svg {
   font-size: 0.92rem;
   font-weight: 600;
   line-height: 1.3;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 .button-primary {
-  background: var(--primary);
-  color: white;
+  background: linear-gradient(115deg, #b9bfff, #929cff 55%, #aa95fa);
+  color: #0e1020;
+  border-color: #bcc0ff;
+  box-shadow: 0 3px 20px #7273eb20;
 }
 .button-primary:hover {
-  background: var(--primary-hover);
+  background: #c1c5ff;
+  box-shadow: 0 4px 24px #7273eb40;
 }
 .button-secondary {
-  background: white;
+  background: var(--surface);
   border-color: var(--border);
 }
 .button-secondary:hover {
-  background: #f4f6fc;
+  background: #202337;
 }
 .button-quiet {
   background: transparent;
@@ -158,12 +154,12 @@ svg {
   padding: 8px 10px;
 }
 .button-quiet:hover {
-  background: #edf1fa;
+  background: #202337;
   color: var(--foreground);
 }
 .button-danger {
-  color: #b32d37;
-  background: #fff2f3;
+  color: #ffb2c4;
+  background: #2b1724;
 }
 .text-link {
   color: var(--primary);
@@ -184,7 +180,8 @@ svg {
   color: var(--muted);
 }
 .card {
-  background: var(--surface);
+  background: linear-gradient(135deg, #141725, var(--surface) 65%);
+  box-shadow: 0 14px 40px #00000018, inset 0 1px #ffffff04;
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 26px;
@@ -194,8 +191,8 @@ svg {
   align-items: center;
   border-radius: 7px;
   padding: 5px 10px;
-  background: #edf2ff;
-  color: #3455a6;
+  background: #1c2037;
+  color: #b5bcff;
   font-size: 0.82rem;
   font-weight: 500;
   white-space: nowrap;
@@ -212,8 +209,8 @@ svg {
   justify-content: center;
   overflow: hidden;
   border-radius: 14px;
-  background: #e6ecff;
-  color: #3454ac;
+  background: #232842;
+  color: #bec5ff;
   font-size: 0.85rem;
   font-weight: 700;
 }
@@ -238,26 +235,26 @@ svg {
   object-fit: cover;
 }
 .notice {
-  border: 1px solid #cbd8fa;
+  border: 1px solid #343e69;
   padding: 13px 16px;
   border-radius: 10px;
-  background: #f0f5ff;
-  color: #304b83;
+  background: #181d34;
+  color: #bac7ff;
   font-size: 0.9rem;
   overflow-wrap: anywhere;
 }
 .notice-error {
-  border-color: #f3c8cc;
-  background: #fff2f3;
-  color: #a22637;
+  border-color: #6e334a;
+  background: #2b1724;
+  color: #ffb2c4;
 }
 .notice-success {
-  border-color: #c7e3ce;
-  background: #f0f9f1;
-  color: #28643b;
+  border-color: #315b4c;
+  background: #142921;
+  color: #9ee5be;
 }
 .error-text {
-  color: #a22637;
+  color: #ffb2c4;
   font-size: 0.85rem;
 }
 .field {
@@ -272,15 +269,15 @@ svg {
 }
 .input {
   width: 100%;
-  background: white;
-  border: 1px solid #cdd5e3;
+  background: #0b0d16;
+  border: 1px solid #353a52;
   border-radius: 9px;
   min-height: 46px;
   padding: 11px 13px;
   color: var(--foreground);
 }
 .input::placeholder {
-  color: #8490a4;
+  color: #858ba4;
 }
 textarea.input {
   min-height: 120px;
@@ -328,7 +325,7 @@ textarea.input {
   width: 100%;
 }
 .landing {
-  background: #fff;
+  background: var(--background);
   min-height: 100vh;
 }
 .landing-header {
@@ -362,7 +359,7 @@ textarea.input {
   border: 1px solid var(--border);
   padding: 6px 11px;
   border-radius: 6px;
-  color: #53627b;
+  color: #a2a8c4;
   font-size: 0.8rem;
   margin-bottom: 28px;
 }
@@ -392,9 +389,9 @@ textarea.input {
   margin-top: 20px;
 }
 .community-preview {
-  border: 1px solid #dbe3f2;
+  border: 1px solid #30364e;
   border-radius: 22px;
-  background: #f4f7fd;
+  background: #0e111d;
   padding: 27px;
   transform: rotate(-1.5deg);
 }
@@ -405,16 +402,16 @@ textarea.input {
   margin-bottom: 23px;
 }
 .preview-top span:last-child {
-  background: #e4edfb;
+  background: #202940;
   padding: 4px 9px;
   font-size: 0.74rem;
   border-radius: 6px;
-  color: #526687;
+  color: #b7bfda;
 }
 .preview-note {
   border: 1px solid var(--border);
   border-radius: 14px;
-  background: white;
+  background: var(--surface);
   padding: 24px;
 }
 .preview-note + .preview-note {
@@ -432,13 +429,13 @@ textarea.input {
   margin-top: 19px;
 }
 .preview-icon {
-  background: #d7eeaa;
+  background: #2b2849;
   width: 43px;
   height: 43px;
   border-radius: 12px;
   display: grid;
   place-items: center;
-  color: #375c1c;
+  color: #c9c3ff;
 }
 .preview-footer {
   display: flex;
@@ -446,7 +443,7 @@ textarea.input {
   gap: 10px;
   padding-top: 19px;
   font-size: 0.85rem;
-  color: #556680;
+  color: #a9b0cc;
 }
 .feature-strip {
   border-top: 1px solid var(--border);
@@ -479,6 +476,7 @@ textarea.input {
   justify-content: space-between;
 }
 .auth-page {
+  background: radial-gradient(ellipse at 50% 10%, #28233b 0, transparent 60%);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -490,7 +488,8 @@ textarea.input {
   margin-bottom: 27px;
 }
 .auth-card {
-  background: white;
+  background: linear-gradient(145deg, #171929, #0e111b);
+  box-shadow: 0 24px 90px #00000066;
   border: 1px solid var(--border);
   border-radius: 20px;
   width: 100%;
@@ -554,7 +553,8 @@ textarea.input {
 .app-header {
   height: 77px;
   border-bottom: 1px solid var(--border);
-  background: white;
+  background: #0a0b12ed;
+  backdrop-filter: blur(18px);
   position: sticky;
   top: 0;
   z-index: 20;
@@ -620,22 +620,23 @@ textarea.input {
   align-items: center;
   padding: 13px;
   border-radius: 10px;
-  color: #5d6980;
+  color: #a8aec5;
   font-size: 0.92rem;
   font-weight: 500;
 }
 .nav-link:hover {
-  background: #eaf0fb;
+  background: #191d30;
 }
 .nav-link.active {
-  background: #e7edff;
+  background: linear-gradient(90deg, #292c4d, #191c31);
+  box-shadow: inset 2px 0 var(--primary);
   color: var(--primary);
   font-weight: 700;
 }
 .nav-link .soon-badge {
   margin-left: auto;
   font-size: 0.7rem;
-  color: #6e7990;
+  color: #9399b3;
 }
 .sidebar-footer {
   margin-top: 32px;
@@ -673,8 +674,8 @@ textarea.input {
   margin-bottom: 17px;
 }
 .welcome-card {
-  background: #eaf0ff;
-  border-color: #dae4ff;
+  background: radial-gradient(ellipse at 100% 0, #37315b, #171b2f 75%);
+  border-color: #363b61;
 }
 .post-composer {
   padding: 23px;
@@ -735,7 +736,7 @@ textarea.input {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  border-top: 1px solid #edf0f5;
+  border-top: 1px solid #282b40;
   padding-top: 14px;
 }
 .post-footer a {
@@ -774,7 +775,7 @@ textarea.input {
   width: 56px;
   height: 56px;
   border-radius: 17px;
-  background: #edf2ff;
+  background: #1c2037;
   color: var(--primary);
 }
 .empty-state h2 {
@@ -903,7 +904,7 @@ textarea.input {
   margin-top: 16px;
 }
 .profile-cover {
-  background: #2456e8;
+  background: linear-gradient(90deg, #0a0c18bb, #0a0c1822 50%, #0a0c18bb), url("/nexus-artwork.png") center 47% / cover;
   color: #fff;
   padding: 24px 30px;
   height: 155px;
@@ -912,15 +913,18 @@ textarea.input {
   justify-content: space-between;
 }
 .profile-cover span:first-child {
-  font-size: 4rem;
-  font-weight: 800;
+  font-size: 0.72rem;
+  font-weight: 600;
   line-height: 1;
-  letter-spacing: -0.1em;
-  color: #7395ff;
+  letter-spacing: 0.22em;
+  color: #c9ceec;
+  align-self: flex-start;
 }
 .profile-cover span:last-child {
   font-size: 0.85rem;
-  color: #dce5ff;
+  color: #e0e4ff;
+  align-self: flex-start;
+  font-size: 0.75rem;
 }
 .profile-body {
   padding: 0 30px 30px;
@@ -934,7 +938,8 @@ textarea.input {
   position: relative;
 }
 .profile-topline .avatar {
-  border: 5px solid white;
+  border: 5px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
 }
 .profile-topline .button {
   margin-top: 45px;
@@ -984,8 +989,8 @@ textarea.input {
   cursor: pointer;
 }
 .interest-option:has(input:checked) {
-  background: #eaf0ff;
-  border-color: #9ab2ff;
+  background: #1a1e36;
+  border-color: #858aff;
   color: var(--primary);
 }
 input[type="checkbox"] {
@@ -1013,15 +1018,15 @@ input[type="checkbox"] {
 code {
   font-size: 0.88em;
   font-family: ui-monospace, monospace;
-  background: #eef2f9;
+  background: #22273c;
   padding: 2px 5px;
   border-radius: 4px;
   overflow-wrap: anywhere;
 }
 pre {
   white-space: pre-wrap;
-  background: #152441;
-  color: #edf2ff;
+  background: #151a2c;
+  color: var(--foreground);
   padding: 20px;
   border-radius: 10px;
   overflow: auto;
@@ -1120,9 +1125,14 @@ pre code {
   .landing-nav {
     gap: 3px;
   }
-  .landing-header .brand {
-    font-size: 1.05rem;
-    gap: 8px;
+  .brand-artwork {
+    width: 122px;
+    height: 34px;
+  }
+  .brand-artwork img {
+    width: 132px;
+    left: -5px;
+    top: -24px;
   }
   .landing-main {
     padding: 24px 22px;
@@ -1176,7 +1186,8 @@ pre code {
     left: 0;
     right: 0;
     bottom: 0;
-    background: white;
+    background: #0b0d18f5;
+    backdrop-filter: blur(18px);
     border-top: 1px solid var(--border);
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1227,6 +1238,7 @@ pre code {
 }
 @media (prefers-reduced-motion: reduce) {
   * {
+    animation: none !important;
     scroll-behavior: auto !important;
     transition: none !important;
   }

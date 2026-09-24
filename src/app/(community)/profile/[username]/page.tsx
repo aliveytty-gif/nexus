@@ -46,7 +46,7 @@ export default async function ProfilePage({
       )}
       <article className="card profile-card">
         <div className="profile-cover" aria-hidden="true">
-          <span>N</span>
+          <span>NEXUS / COMMUNITY</span>
           <span>На одной волне.</span>
         </div>
         <div className="profile-body">
