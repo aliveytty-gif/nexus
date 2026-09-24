@@ -1,4 +1,4 @@
-// Schema contract for 202609150001_core.sql.
+// Schema contract through 202609230001_closed_alpha.sql.
 // Regenerate from your Supabase project after changing migrations (see README).
 export type Json =
   | string
@@ -58,6 +58,7 @@ export type Database = {
           id: string;
           author_id: string;
           content: string;
+          image_url: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -65,6 +66,7 @@ export type Database = {
           id?: string;
           author_id: string;
           content: string;
+          image_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -72,6 +74,7 @@ export type Database = {
           id?: string;
           author_id?: string;
           content?: string;
+          image_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -79,6 +82,72 @@ export type Database = {
           {
             foreignKeyName: "posts_author_id_fkey";
             columns: ["author_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      conversations: {
+        Row: { id: string; direct_key: string; created_at: string };
+        Insert: { id?: string; direct_key: string; created_at?: string };
+        Update: { id?: string; direct_key?: string; created_at?: string };
+        Relationships: [];
+      };
+      conversation_members: {
+        Row: { conversation_id: string; user_id: string };
+        Insert: { conversation_id: string; user_id: string };
+        Update: { conversation_id?: string; user_id?: string };
+        Relationships: [
+          {
+            foreignKeyName: "conversation_members_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "conversation_members_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      messages: {
+        Row: {
+          id: string;
+          conversation_id: string;
+          sender_id: string;
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          conversation_id: string;
+          sender_id: string;
+          body: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          conversation_id?: string;
+          sender_id?: string;
+          body?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey";
+            columns: ["sender_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];
@@ -157,6 +226,14 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
+      get_or_create_direct_conversation: {
+        Args: { p_other_user_id: string };
+        Returns: string;
+      };
+      is_conversation_member: {
+        Args: { p_conversation_id: string };
+        Returns: boolean;
+      };
       update_my_profile: {
         Args: {
           p_first_name: string;
@@ -179,5 +256,7 @@ export type Database = {
 
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Post = Database["public"]["Tables"]["posts"]["Row"];
+export type Conversation = Database["public"]["Tables"]["conversations"]["Row"];
+export type Message = Database["public"]["Tables"]["messages"]["Row"];
 export type Comment = Database["public"]["Tables"]["comments"]["Row"];
 export type Interest = Database["public"]["Tables"]["interests"]["Row"];

@@ -13,6 +13,7 @@ import { displayName } from "@/lib/format";
 import { getProfileByUsername } from "@/features/profiles/data";
 import { Avatar } from "@/components/ui/avatar";
 import { Notice } from "@/components/ui/notice";
+import { StartConversationButton } from "@/features/messages/forms";
 
 export const metadata: Metadata = { title: "Профиль" };
 
@@ -56,6 +57,7 @@ export default async function ProfilePage({
                 <Pencil size={15} aria-hidden="true" /> Редактировать
               </Link>
             )}
+            {!isOwner && <StartConversationButton userId={profile.id} />}
           </div>
           <div className="profile-name">
             <h1>{name}</h1>

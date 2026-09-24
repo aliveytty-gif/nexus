@@ -1,0 +1,37 @@
+.heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
+.heading h1 { font-size: 1.8rem; }
+.heading p { margin-top: 6px; }
+.layout { display: grid; grid-template-columns: minmax(210px, .8fr) minmax(0, 1.5fr); gap: 20px; align-items: start; }
+.list { padding: 10px; min-width: 0; }
+.list h2 { padding: 12px; font-size: 1rem; }
+.conversation { display: flex; gap: 10px; padding: 14px 12px; border-radius: 10px; }
+.conversation:hover, .active { background: #eaf0ff; }
+.summary { min-width: 0; }
+.summary strong, .summary p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.summary strong { display: block; font-size: .92rem; }
+.summary p { margin-top: 4px; font-size: .82rem; color: var(--muted); }
+.thread { min-width: 0; padding: 22px; }
+.threadHeader { display: flex; align-items: center; gap: 12px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+.threadHeader h2 { font-size: 1.05rem; }
+.threadHeader p { font-size: .82rem; }
+.back { display: none; }
+.messages { display: flex; flex-direction: column; gap: 16px; margin: 24px 0; padding: 0; list-style: none; }
+.message { align-self: flex-start; max-width: 90%; padding: 12px 15px; border-radius: 13px; background: #f0f3f8; overflow-wrap: anywhere; }
+.mine { align-self: flex-end; background: #e7edff; }
+.message p { white-space: pre-wrap; }
+.message time { display: block; color: var(--muted); font-size: .7rem; margin-top: 7px; }
+.empty { padding: 38px 18px; text-align: center; color: var(--muted); }
+.empty svg { margin: 0 auto 14px; color: var(--primary); }
+.empty h2 { color: var(--foreground); font-size: 1.1rem; margin-bottom: 9px; }
+.pagination { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 18px 0; }
+@media (max-width: 950px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .selected .list, .noSelection .thread { display: none; }
+  .back { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+}
+@media (max-width: 600px) {
+  .heading { align-items: flex-start; }
+  .heading h1 { font-size: 1.5rem; }
+  .heading p { font-size: .84rem; }
+  .thread { padding: 18px; }
+}

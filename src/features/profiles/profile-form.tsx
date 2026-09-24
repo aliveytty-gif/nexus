@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useActionState, useState } from "react";
 import { Check } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Notice } from "@/components/ui/notice";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { updateProfileAction } from "@/features/profiles/actions";
+import { updateProfileAction, updateAvatarAction } from "@/features/profiles/actions";
+import { createClient } from "@/lib/supabase/client";
+import { IMAGE_ACCEPT, uploadImage } from "@/lib/storage";
 import type {
   ProfileActionState,
   ProfileWithInterests,
@@ -24,6 +27,9 @@ export function ProfileForm({
     updateProfileAction,
     {},
   );
+  const router = useRouter();
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const [fields, setFields] = useState({
     first_name: profile.first_name,
     last_name: profile.last_name,
@@ -51,7 +57,7 @@ export function ProfileForm({
     <form
       action={action}
       className="card profile-editor form-stack"
-      aria-busy={pending}
+      aria-busy={pending || uploading}
     >
       {state.error && <Notice tone="error">{state.error}</Notice>}
       <div className="profile-avatar-row">
@@ -66,6 +72,37 @@ export function ProfileForm({
             Расскажи немного о себе — знакомиться станет проще.
           </p>
         </div>
+      </div>
+      <div className="field">
+        <label className="label" htmlFor="avatar-file">Загрузить фото</label>
+        <input id="avatar-file" className="input" type="file" accept={IMAGE_ACCEPT}
+          disabled={pending || uploading}
+          aria-describedby="avatar-upload-help"
+          onChange={async (event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (!file) return;
+            setUploading(true);
+            setUploadError("");
+            const supabase = createClient();
+            let uploadedPath: string | undefined;
+            try {
+              const uploaded = await uploadImage(supabase, "avatars", file);
+              uploadedPath = uploaded.path;
+              const result = await updateAvatarAction(uploaded.url);
+              if (result.error) throw new Error(result.error);
+              update("avatar_url", uploaded.url);
+              uploadedPath = undefined;
+              router.refresh();
+            } catch (error) {
+              if (uploadedPath) await supabase.storage.from("avatars").remove([uploadedPath]);
+              setUploadError(error instanceof Error ? error.message : "Не удалось загрузить фото.");
+            } finally { setUploading(false); }
+          }} />
+        <p id="avatar-upload-help" className="muted">
+          {uploading ? "Загружаем фото…" : "JPG, PNG или WEBP до 5 МБ. Фото сохраняется сразу."}
+        </p>
+        {uploadError && <Notice tone="error">{uploadError}</Notice>}
       </div>
       <div className="form-grid">
         <div className="field">
@@ -292,7 +329,7 @@ export function ProfileForm({
         </p>
       </fieldset>
       <div className="profile-form-actions">
-        <SubmitButton pendingText="Сохраняем профиль…">
+        <SubmitButton pendingText="Сохраняем профиль…" disabled={uploading}>
           Сохранить профиль <Check size={17} aria-hidden="true" />
         </SubmitButton>
         <Link

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { MessageCircle, ArrowUpRight } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { displayName, formatDate } from "@/lib/format";
@@ -38,6 +39,9 @@ export function PostCard({
         </div>
       </header>
       <p className="post-body">{post.content}</p>
+      {post.image_url && <Image src={post.image_url} alt="Фотография к публикации"
+        width={1200} height={800} unoptimized
+        style={{ width: "100%", height: "auto", maxHeight: 520, objectFit: "contain", borderRadius: 12 }} />}
       <footer className="post-footer">
         <Link href={`/posts/${post.id}#comments`}>
           <MessageCircle size={18} />

@@ -4,7 +4,7 @@ import { UUID_PATTERN } from "./validation";
 
 export const POSTS_PER_PAGE = 20;
 const postSelect =
-  "id,content,created_at,author_id,author:profiles!posts_author_id_fkey(id,first_name,last_name,username,avatar_url,group_name),comments(count)";
+  "id,content,image_url,created_at,author_id,author:profiles!posts_author_id_fkey(id,first_name,last_name,username,avatar_url,group_name),comments(count)";
 export async function getPosts(page = 1, authorId?: string) {
   const supabase = await createClient();
   let query = supabase.from("posts").select(postSelect, { count: "exact" });

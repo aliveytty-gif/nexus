@@ -27,7 +27,6 @@ export function Navigation({ username }: { username: string }) {
       href: "/messages",
       label: "Сообщения",
       icon: MessagesSquare,
-      soon: true,
       active: pathname === "/messages",
     },
     {

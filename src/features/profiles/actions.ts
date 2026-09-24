@@ -7,6 +7,24 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfileById } from "@/features/profiles/data";
 import { validateProfileInput } from "@/features/profiles/validation";
 import type { ProfileActionState } from "@/features/profiles/types";
+import { ownedImagePath } from "@/lib/storage";
+
+export async function updateAvatarAction(url: string): Promise<{ error?: string }> {
+  const user = await requireUser("/profile/edit");
+  if (!ownedImagePath(url, "avatars", user.id))
+    return { error: "Недопустимый адрес фотографии." };
+  const supabase = await createClient();
+  const previous = await getProfileById(user.id);
+  const { error } = await supabase.from("profiles")
+    .update({ avatar_url: url }).eq("id", user.id).select("id").single();
+  if (error) return { error: "Не удалось сохранить фото. Попробуйте ещё раз." };
+  const oldPath = previous?.avatar_url
+    ? ownedImagePath(previous.avatar_url, "avatars", user.id) : null;
+  if (oldPath && previous?.avatar_url !== url)
+    await supabase.storage.from("avatars").remove([oldPath]);
+  revalidatePath("/", "layout");
+  return {};
+}
 
 export async function updateProfileAction(
   _previous: ProfileActionState,
