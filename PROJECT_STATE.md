@@ -1,6 +1,6 @@
 # NEXUS v0.2 — Closed Alpha MVP
 
-Обновлено: 2026-09-24.
+Обновлено: 2026-09-25.
 
 ## Social MVP — рабочая ветка
 
@@ -8,11 +8,11 @@
 - **Лайки:** like/unlike со счётчиком и сохранением, уникальная пара post/user, собственные изменения через RLS. Используются общий PostCard и embedded counts.
 - **Вложения:** одно JPG/JPEG/PNG/WEBP/PDF/TXT/DOC/DOCX/ZIP до 10 МБ, с текстом или отдельно; private `message-files`, путь conversation/user/uuid-filename, проверка MIME/размера/владельца и Storage metadata. Участники получают signed download URL на 10 минут, затем обновляют диалог.
 - **Сообщества:** список, создание, аватар в существующем avatars, страница, join/leave, публикации через posts.community_id. В группе публикуют участники; в канале owner/admin. Владелец создаётся атомарно, самостоятельно повысить роль нельзя. UI назначения admin/редактирования сообщества не входит в этап.
-- **БД:** подготовлена одна новая `202609240001_social_mvp.sql`; **на Supabase ещё не применена**. Семь целевых PGlite-тестов прошли: приватные файлы A/B/C, metadata, роли, like uniqueness и совместимость старых текстовых сообщений/постов. PGlite не подтверждает реальную загрузку и подписанные URL.
+- **БД:** `202609240001_social_mvp.sql` применена через SQL Editor в `dlvuhsbxchprpvxtnedz` 25.09.2026: `Success. No rows returned`. RLS включён на messages, post_likes, communities, community_members; действующая production-лента после миграции открывается. Семь целевых PGlite-тестов прошли: приватные файлы A/B/C, metadata, роли, like uniqueness и совместимость старых текстовых сообщений/постов. PGlite не подтверждает реальную загрузку и подписанные URL. Старые миграции повторно не запускались.
 - **GitHub:** https://github.com/aliveytty-gif/nexus — private. `main` содержит рабочий production snapshot `b3b25eb`. Изменения готовятся в `feature/social-mvp` через PR; GitHub Actions `build` проверяет типы, lint, тесты и сборку. История перед первым push проверена на запрещённые файлы и типовые шаблоны секретов; совпадений не обнаружено.
 - **Защита main:** GitHub API вернул 403: для защиты private repository требуется Pro. Ни тариф, ни видимость не менялись; PR-процесс пока не принуждается сервером.
-- **Выпуск:** Vercel CLI отклонил сохранённый токен. Git integration и project env для автоматических сборок ещё не настроены. После входа: сохранить две публичные Supabase env для production/preview, связать существующий Vercel-проект с этим GitHub, убедиться в production branch main; применить только новую миграцию, проверить preview, затем merge и production. Общая БД у preview/production не изолирована.
-- **Проверки:** TypeScript, lint и production build прошли локально. Действующая production-лента повторно открыта с сохранённой сессией, ошибок console нет. Новые функции в браузере с реальным Supabase ещё не проверены и не опубликованы.
+- **Выпуск:** вход в Vercel восстановлен; две публичные Supabase env сохранены на уровне проекта для production/preview, localhost SITE_URL не переносился. Две попытки preview (`dpl_4SmperMHgojpVZpGqWtbFhRvAhut`, `dpl_DybctYa5Go2GtERG6inPUfpLkTNQ`) вернули `UNKNOWN`; у первой ожидание оборвалось с `fetch failed`, журнал сборки отсутствует. Последний preview: `https://nexus-gbws0haj3-zvwcpf72q6-4901.vercel.app`. Git connect после подтверждения пользователя повторно вернул 400 `You need to add a Login Connection to your GitHub account first`. Интеграция и production branch не подтверждены. PR #1 остаётся draft, main и действующий production не заменены. Для продолжения владелец проверяет GitHub Login Connection аккаунта Vercel, которому принадлежит проект nexus, и последнюю сборку в Dashboard. Общая БД у preview/production не изолирована.
+- **Проверки:** TypeScript, lint, тесты и production build прошли локально и в GitHub Actions для PR #1 (`188a806`, run `36038888429`). Действующая production-лента повторно открыта с сохранённой сессией, ошибок console нет. Новые функции в браузере с реальным Supabase ещё не проверены и не опубликованы.
 
 ## Скорость загрузки
 
@@ -48,7 +48,7 @@ Supabase Site URL изменён на постоянный домен; три pr
 
 ## Known issues / непроверенное
 
-- Вложения/лайки/сообщества пока в рабочей ветке: нужны новая миграция и выпуск после входа в Vercel. Файл незавершённого сообщения может остаться в private Storage.
+- Вложения/лайки/сообщества пока в рабочей ветке: миграция применена, нужны проверка preview и выпуск. `message-files` подтверждён как private, лимит 10 МБ. Файл незавершённого сообщения может остаться в private Storage.
 
 - Скорость на других устройствах, при холодном старте и под нагрузкой отдельно не измерялась.
 - Выбранное фото незавершённого поста может остаться в Storage при закрытии страницы.
