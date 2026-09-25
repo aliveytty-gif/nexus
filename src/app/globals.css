@@ -749,6 +749,19 @@ textarea.input {
 .post-footer a:hover {
   color: var(--primary);
 }
+.like-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.like-button[aria-pressed="true"] { color: var(--primary); }
+.like-button:disabled { opacity: .5; cursor: wait; }
 .section-label {
   display: flex;
   justify-content: space-between;

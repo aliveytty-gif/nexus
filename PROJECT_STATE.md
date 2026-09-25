@@ -1,6 +1,18 @@
 # NEXUS v0.2 — Closed Alpha MVP
 
-Обновлено: 2026-09-24.
+Обновлено: 2026-09-25.
+
+## Social MVP — рабочая ветка
+
+- **Название:** основной browser title сокращён до `NEXUS`; логотип и дизайн сохранены.
+- **Лайки:** like/unlike со счётчиком и сохранением, уникальная пара post/user, собственные изменения через RLS. Используются общий PostCard и embedded counts.
+- **Вложения:** одно JPG/JPEG/PNG/WEBP/PDF/TXT/DOC/DOCX/ZIP до 10 МБ, с текстом или отдельно; private `message-files`, путь conversation/user/uuid-filename, проверка MIME/размера/владельца и Storage metadata. Участники получают signed download URL на 10 минут, затем обновляют диалог.
+- **Сообщества:** список, создание, аватар в существующем avatars, страница, join/leave, публикации через posts.community_id. В группе публикуют участники; в канале owner/admin. Владелец создаётся атомарно, самостоятельно повысить роль нельзя. UI назначения admin/редактирования сообщества не входит в этап.
+- **БД:** `202609240001_social_mvp.sql` применена через SQL Editor в `dlvuhsbxchprpvxtnedz` 25.09.2026: `Success. No rows returned`. RLS включён на messages, post_likes, communities, community_members; действующая production-лента после миграции открывается. Семь целевых PGlite-тестов прошли: приватные файлы A/B/C, metadata, роли, like uniqueness и совместимость старых текстовых сообщений/постов. PGlite не подтверждает реальную загрузку и подписанные URL. Старые миграции повторно не запускались.
+- **GitHub:** https://github.com/aliveytty-gif/nexus — private. `main` содержит рабочий production snapshot `b3b25eb`. Изменения готовятся в `feature/social-mvp` через PR; GitHub Actions `build` проверяет типы, lint, тесты и сборку. История перед первым push проверена на запрещённые файлы и типовые шаблоны секретов; совпадений не обнаружено.
+- **Защита main:** GitHub API вернул 403: для защиты private repository требуется Pro. Ни тариф, ни видимость не менялись; PR-процесс пока не принуждается сервером.
+- **Выпуск:** вход в Vercel восстановлен; две публичные Supabase env сохранены для production/preview, localhost SITE_URL не переносился. CLI показал `UNKNOWN` для двух preview. Прямой API `/v13/deployments/dpl_DybctYa5Go2GtERG6inPUfpLkTNQ` уточнил: **BLOCKED — автор коммита не имеет права создавать deployments этого проекта**; сборка не начиналась. Текущий CLI-аккаунт: `zvwcpf72q6-4901`. Git connect дважды вернул 400 `You need to add a Login Connection to your GitHub account first`, включая повтор после подтверждения пользователя. Требуется проверить GitHub Login Connection `aliveytty-gif` именно у этого Vercel-аккаунта. Интеграция и production branch не подтверждены. PR #1 остаётся draft, main и действующий production не заменены. Общая БД у preview/production не изолирована.
+- **Проверки:** TypeScript, lint, тесты и production build прошли локально и в GitHub Actions для PR #1 (`188a806`, run `36038888429`). Действующая production-лента повторно открыта с сохранённой сессией, ошибок console нет. Новые функции в браузере с реальным Supabase ещё не проверены и не опубликованы.
 
 ## Скорость загрузки
 
@@ -35,6 +47,8 @@ Supabase Site URL изменён на постоянный домен; три pr
 На текущем Mac подготовлен `../../work/deploy-nexus-v02.command`: запускается через `bash`, выполняет Vercel login и production deploy. Берёт только `NEXT_PUBLIC_SUPABASE_URL` и `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` из игнорируемого `.env.local`, передаёт их сборке и приложению. `NEXT_PUBLIC_SITE_URL` с localhost не переносится; используется `VERCEL_PROJECT_PRODUCTION_URL`. Для повторных CLI-публикаций использовать тот же launcher. Основание параметров: [Vercel CLI deploy](https://vercel.com/docs/cli/deploy).
 
 ## Known issues / непроверенное
+
+- Вложения/лайки/сообщества пока в рабочей ветке: миграция применена, нужны проверка preview и выпуск. `message-files` подтверждён как private, лимит 10 МБ. Файл незавершённого сообщения может остаться в private Storage.
 
 - Скорость на других устройствах, при холодном старте и под нагрузкой отдельно не измерялась.
 - Выбранное фото незавершённого поста может остаться в Storage при закрытии страницы.

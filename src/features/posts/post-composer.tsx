@@ -13,9 +13,11 @@ import { IMAGE_ACCEPT, uploadImage } from "@/lib/storage";
 export function PostComposer({
   name,
   avatarUrl,
+  communityId,
 }: {
   name: string;
   avatarUrl: string | null;
+  communityId?: string;
 }) {
   const [state, action, pending] = useActionState(createPostAction, {});
   const [photo, setPhoto] = useState<{ path: string; url: string } | null>(null);
@@ -31,6 +33,7 @@ export function PostComposer({
         </div>
       </div>
       <form action={action} aria-busy={pending || uploading}>
+        {communityId && <input type="hidden" name="community_id" value={communityId} />}
         <label className="sr-only" htmlFor="post-content">
           Текст публикации
         </label>

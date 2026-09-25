@@ -5,6 +5,7 @@ import {
   LayoutList,
   UserRound,
   MessagesSquare,
+  UsersRound,
   Map,
   Sparkles,
 } from "lucide-react";
@@ -28,6 +29,12 @@ export function Navigation({ username }: { username: string }) {
       label: "Сообщения",
       icon: MessagesSquare,
       active: pathname === "/messages",
+    },
+    {
+      href: "/communities",
+      label: "Сообщества",
+      icon: UsersRound,
+      active: pathname.startsWith("/communities"),
     },
     {
       href: "/map",

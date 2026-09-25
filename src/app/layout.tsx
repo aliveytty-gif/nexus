@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: { default: "NEXUS — твой колледж ближе", template: "%s · NEXUS" },
+  title: { default: "NEXUS", template: "%s · NEXUS" },
   description: "Место для общения, идей и людей твоего колледжа.",
   robots: { index: false, follow: false },
 };

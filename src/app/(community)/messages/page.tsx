@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, MessagesSquare } from "lucide-react";
+import { ArrowLeft, MessagesSquare, Paperclip } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { requireUser } from "@/lib/auth/session";
 import { displayName, formatDate, pageNumber } from "@/lib/format";
+import { formatAttachmentSize } from "@/lib/storage";
 import { UUID_PATTERN } from "@/features/posts/validation";
 import { getConversations, getConversationMessages } from "@/features/messages/data";
 import { MessageForm, RefreshMessagesButton } from "@/features/messages/forms";
@@ -45,7 +46,7 @@ export default async function MessagesPage({ searchParams }: {
               aria-current={selected?.id === conversation.id ? "page" : undefined}>
               <Avatar name={otherName} url={other?.avatar_url} size="sm" />
               <div className={styles.summary}><strong>{otherName}</strong>
-                <p>{conversation.latest?.body ?? "Пока нет сообщений"}</p>
+                <p>{conversation.latest?.body || conversation.latest?.attachment_name || "Пока нет сообщений"}</p>
               </div>
             </Link>;
           }) : <div className={styles.empty}>
@@ -72,9 +73,19 @@ export default async function MessagesPage({ searchParams }: {
               {thread.messages.map((message) => <li id={`message-${message.id}`} key={message.id}
                 className={`${styles.message} ${message.sender_id === user.id ? styles.mine : ""}`}>
                 <span className="sr-only">{message.sender_id === user.id ? "Ты" : name}: </span>
-                <p>{message.body}</p><time dateTime={message.created_at}>{formatDate(message.created_at)}</time>
+                {message.body && <p>{message.body}</p>}
+                {message.attachment_path && <div className={styles.attachment}>
+                  <Paperclip size={18} aria-hidden="true" />
+                  <div><strong>{message.attachment_name}</strong>
+                    <p className="muted small">{message.attachment_name?.split(".").pop()?.toUpperCase()} · {formatAttachmentSize(message.attachment_size ?? 0)}</p>
+                    {message.attachmentUrl ? <a href={message.attachmentUrl} className="text-link" target="_blank" rel="noopener noreferrer">Скачать файл</a>
+                      : <span className="muted small">Файл недоступен. Нажми «Обновить».</span>}
+                  </div>
+                </div>}
+                <time dateTime={message.created_at}>{formatDate(message.created_at)}</time>
               </li>)}
             </ol> : <p className={styles.empty}>{page > 1 ? "На этой странице нет сообщений." : "Пока тихо. Напиши первое сообщение."}</p>}
+            {thread.messages.some((message) => message.attachment_path) && <p className="muted small">Ссылки на файлы действуют 10 минут. Если ссылка истекла, нажми «Обновить».</p>}
             {participant && <MessageForm key={`${selected.id}-${query.sent ?? ""}`} conversationId={selected.id} />}
           </> : <div className={styles.empty}>
             <MessagesSquare size={38} aria-hidden="true" /><h2>Здесь начинается разговор</h2>
