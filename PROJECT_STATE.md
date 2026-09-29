@@ -1,18 +1,18 @@
 # NEXUS v0.2 — Closed Alpha MVP
 
-Обновлено: 2026-09-25.
+Обновлено: 2026-09-29.
 
-## Social MVP — рабочая ветка
+## Social MVP — опубликован
 
 - **Название:** основной browser title сокращён до `NEXUS`; логотип и дизайн сохранены.
 - **Лайки:** like/unlike со счётчиком и сохранением, уникальная пара post/user, собственные изменения через RLS. Используются общий PostCard и embedded counts.
 - **Вложения:** одно JPG/JPEG/PNG/WEBP/PDF/TXT/DOC/DOCX/ZIP до 10 МБ, с текстом или отдельно; private `message-files`, путь conversation/user/uuid-filename, проверка MIME/размера/владельца и Storage metadata. Участники получают signed download URL на 10 минут, затем обновляют диалог.
 - **Сообщества:** список, создание, аватар в существующем avatars, страница, join/leave, публикации через posts.community_id. В группе публикуют участники; в канале owner/admin. Владелец создаётся атомарно, самостоятельно повысить роль нельзя. UI назначения admin/редактирования сообщества не входит в этап.
 - **БД:** `202609240001_social_mvp.sql` применена через SQL Editor в `dlvuhsbxchprpvxtnedz` 25.09.2026: `Success. No rows returned`. RLS включён на messages, post_likes, communities, community_members; действующая production-лента после миграции открывается. Семь целевых PGlite-тестов прошли: приватные файлы A/B/C, metadata, роли, like uniqueness и совместимость старых текстовых сообщений/постов. PGlite не подтверждает реальную загрузку и подписанные URL. Старые миграции повторно не запускались.
-- **GitHub:** https://github.com/aliveytty-gif/nexus — private. `main` содержит рабочий production snapshot `b3b25eb`. Изменения готовятся в `feature/social-mvp` через PR; GitHub Actions `build` проверяет типы, lint, тесты и сборку. История перед первым push проверена на запрещённые файлы и типовые шаблоны секретов; совпадений не обнаружено.
+- **GitHub:** https://github.com/aliveytty-gif/nexus — private. PR #1 объединён 25.09.2026; `main` содержит Social MVP (`0193324`). GitHub Actions проверяет типы, lint, тесты и production build. История перед первым push проверена на запрещённые файлы и типовые шаблоны секретов; совпадений не обнаружено.
 - **Защита main:** GitHub API вернул 403: для защиты private repository требуется Pro. Ни тариф, ни видимость не менялись; PR-процесс пока не принуждается сервером.
-- **Выпуск:** вход в Vercel восстановлен; две публичные Supabase env сохранены для production/preview, localhost SITE_URL не переносился. CLI показал `UNKNOWN` для двух preview. Прямой API `/v13/deployments/dpl_DybctYa5Go2GtERG6inPUfpLkTNQ` уточнил: **BLOCKED — автор коммита не имеет права создавать deployments этого проекта**; сборка не начиналась. Текущий CLI-аккаунт: `zvwcpf72q6-4901`. Git connect дважды вернул 400 `You need to add a Login Connection to your GitHub account first`, включая повтор после подтверждения пользователя. Требуется проверить GitHub Login Connection `aliveytty-gif` именно у этого Vercel-аккаунта. Интеграция и production branch не подтверждены. PR #1 остаётся draft, main и действующий production не заменены. Общая БД у preview/production не изолирована.
-- **Проверки:** TypeScript, lint, тесты и production build прошли локально и в GitHub Actions для PR #1 (`188a806`, run `36038888429`). Действующая production-лента повторно открыта с сохранённой сессией, ошибок console нет. Новые функции в браузере с реальным Supabase ещё не проверены и не опубликованы.
+- **Выпуск:** GitHub App Vercel установлен с разрешения владельца только для `aliveytty-gif/nexus`, `git connect` завершился успешно, production branch — `main`. Блокировка автора устранена: preview `dpl_HZu2SiSs6q8ugDaiCZKkzpfBgk5G` получил READY и прошёл удалённую сборку до merge. Публичные Supabase env сохранены для production/preview; localhost SITE_URL не переносился. После merge новые функции доступны по постоянному production URL. Общая БД у preview/production не изолирована.
+- **Проверки:** TypeScript, lint, тесты и production build прошли локально и в GitHub Actions; финальный PR head `90ab981`, run `36141734619` — success. 29.09.2026 в авторизованном production проверены лента, сохранение ранее поставленного лайка и его снятие после перезагрузки, список и страница существующего сообщества с ролью владельца, список диалогов, история и форма вложения до 10 МБ. Ошибок console при проверке не обнаружено. Проверка передачи файла между двумя реальными аккаунтами остаётся открытой; в этой проверке сообщения не отправлялись.
 
 ## Скорость загрузки
 
@@ -40,15 +40,15 @@
 
 ## Deployment
 
-Production URL: **https://nexus-chi-khaki-43.vercel.app**. Vercel CLI подтвердил `production / Ready`, текущий deployment `dpl_48hAuJLcNL6WiDYVgM2Go9TSMaTm`. Главная страница и `/login` открыты в браузере без входа в Vercel. Адреса отдельных сборок требуют Vercel Authentication; тестировщикам передавать постоянный Production URL выше.
+Production URL: **https://nexus-chi-khaki-43.vercel.app**. Social MVP доступен на постоянном домене: повторная авторизованная браузерная проверка выполнена 29.09.2026. Новый deployment ID/READY/регион повторно не подтверждены: запрос Vercel API из CLI завершился сетевой ошибкой, доступ через connector — 403. Это ограничение проверки аккаунта; сам production открывается. Адреса отдельных сборок требуют Vercel Authentication; тестировщикам передавать постоянный Production URL выше.
 
 Supabase Site URL изменён на постоянный домен; три production redirect URL сохранены. Существующие localhost redirects сохранены. Подтверждено в интерфейсе Supabase. Production-вход подтверждён пользователем; открытый авторизованный профиль проверен в браузере.
 
-На текущем Mac подготовлен `../../work/deploy-nexus-v02.command`: запускается через `bash`, выполняет Vercel login и production deploy. Берёт только `NEXT_PUBLIC_SUPABASE_URL` и `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` из игнорируемого `.env.local`, передаёт их сборке и приложению. `NEXT_PUBLIC_SITE_URL` с localhost не переносится; используется `VERCEL_PROJECT_PRODUCTION_URL`. Для повторных CLI-публикаций использовать тот же launcher. Основание параметров: [Vercel CLI deploy](https://vercel.com/docs/cli/deploy).
+Повторные выпуски: feature/fix → PR с успешными проверками → merge в `main`; репозиторий подключён к Vercel. Прежний локальный launcher зависит от Node runtime, отсутствующего на Mac на 29.09.2026; его готовность к повторному запуску не подтверждена. Секреты и localhost SITE_URL в Git не добавлять.
 
 ## Known issues / непроверенное
 
-- Вложения/лайки/сообщества пока в рабочей ветке: миграция применена, нужны проверка preview и выпуск. `message-files` подтверждён как private, лимит 10 МБ. Файл незавершённого сообщения может остаться в private Storage.
+- Передачу вложения между двумя аккаунтами и права участника/постороннего в реальном Supabase отдельно проверить. `message-files` подтверждён как private с лимитом 10 МБ; права покрыты целевыми тестами. Файл незавершённого сообщения может остаться в private Storage.
 
 - Скорость на других устройствах, при холодном старте и под нагрузкой отдельно не измерялась.
 - Выбранное фото незавершённого поста может остаться в Storage при закрытии страницы.
