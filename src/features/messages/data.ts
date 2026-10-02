@@ -41,7 +41,7 @@ export async function getConversationMessages(conversationId: string, page: numb
       const signedUrl = urls.get(message.attachment_path);
       const url = signedUrl ? new URL(signedUrl) : null;
       if (url) url.searchParams.set("download", message.attachment_name ?? "file");
-      return { ...message, attachmentUrl: url?.href ?? null };
+      return { ...message, attachmentUrl: signedUrl ?? null, attachmentDownloadUrl: url?.href ?? null };
     }),
     hasOlder: data.length > pageSize,
   };

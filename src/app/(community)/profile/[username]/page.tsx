@@ -15,6 +15,8 @@ import { getProfileByUsername } from "@/features/profiles/data";
 import { Avatar } from "@/components/ui/avatar";
 import { Notice } from "@/components/ui/notice";
 import { StartConversationButton } from "@/features/messages/forms";
+import { getFriendships } from "@/features/profiles/friendships";
+import { FriendControls } from "@/features/profiles/friend-controls";
 
 export const metadata: Metadata = { title: "Профиль" };
 
@@ -30,6 +32,8 @@ export default async function ProfilePage({
   const profile = await getProfileByUsername(username);
   if (!profile) notFound();
   const isOwner = profile.id === user.id;
+  const relationship = isOwner ? null : (await getFriendships(user.id))
+    .find((row) => row.requester_id === profile.id || row.addressee_id === profile.id);
   const query = await searchParams;
   const name = displayName(profile);
   const joined = new Intl.DateTimeFormat("ru-RU", {
@@ -61,7 +65,11 @@ export default async function ProfilePage({
                 <Pencil size={15} aria-hidden="true" /> Редактировать
               </Link>
             )}
-            {!isOwner && <StartConversationButton userId={profile.id} />}
+            {!isOwner && <div className="friend-controls">
+              <StartConversationButton userId={profile.id} />
+              <FriendControls otherId={profile.id} state={!relationship ? "none" : relationship.status === "accepted"
+                ? "friends" : relationship.requester_id === user.id ? "request_sent" : "request_received"} />
+            </div>}
           </div>
           <div className="profile-name">
             <h1>{name}</h1>

@@ -20,6 +20,8 @@ describe("auth redirect boundary", () => {
       "/profile/edit",
       "/profile/student_21",
       "/messages",
+      "/music",
+      "/people",
       "/map",
       "/ai",
       "/posts/12345678-1234-1234-1234-123456789abc",

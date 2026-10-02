@@ -575,6 +575,7 @@ textarea.input {
   margin: 0 12px;
 }
 .header-label {
+  white-space: nowrap;
   font-size: 0.85rem;
   color: var(--muted);
 }
@@ -615,6 +616,7 @@ textarea.input {
   gap: 5px;
 }
 .nav-link {
+  white-space: nowrap;
   display: flex;
   gap: 13px;
   align-items: center;
@@ -651,6 +653,19 @@ textarea.input {
 .content {
   min-width: 0;
 }
+.friend-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.person-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+.person-card .composer-heading { margin: 0; min-width: 0; }
+.person-name { min-width: 0; overflow-wrap: anywhere; }
+.section-tabs { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 8px; margin-bottom: 20px; padding-bottom: 4px; }
+.section-tabs > a { flex-shrink: 0; white-space: nowrap; }
+.section-tabs .active { border-color: var(--primary); color: var(--primary); }
+.profile-topline { flex-wrap: wrap; gap: 16px; }
+.page-heading h1 { overflow-wrap: anywhere; line-height: 1.2; }
+.section-label { gap: 8px; flex-wrap: wrap; }
+.section-label > span { white-space: nowrap; }
+.app-header-inner > .row { flex-wrap: nowrap; min-width: 0; }
+.nav-link > svg { flex-shrink: 0; }
 .feed-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 257px;
@@ -974,6 +989,8 @@ textarea.input {
 .profile-topline .button {
   margin-top: 45px;
 }
+.profile-topline > .friend-controls { margin-top: 45px; }
+.profile-topline .friend-controls .button { margin-top: 0; }
 .profile-name {
   margin: 22px 0;
   overflow-wrap: anywhere;
@@ -1103,6 +1120,7 @@ pre code {
   }
 }
 @media (max-width: 800px) {
+  .header-label, .header-divider { display: none; }
   .hero {
     grid-template-columns: 1fr;
     gap: 40px;
@@ -1201,7 +1219,7 @@ pre code {
     display: flex;
     flex-direction: column;
     padding: 16px 16px 100px;
-    gap: 20px;
+    gap: 0;
   }
   .sidebar {
     position: static;
@@ -1219,17 +1237,20 @@ pre code {
     background: #0b0d18f5;
     backdrop-filter: blur(18px);
     border-top: 1px solid var(--border);
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
     gap: 0;
     padding: 7px 5px max(7px, env(safe-area-inset-bottom));
     z-index: 30;
   }
   .nav-link {
+    flex: 0 0 auto;
     flex-direction: column;
     gap: 4px;
     border-radius: 8px;
-    padding: 9px 0;
+    padding: 9px 12px;
     font-size: 0.67rem;
     letter-spacing: -0.025em;
   }
