@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, MessagesSquare, Paperclip } from "lucide-react";
+import { ArrowLeft, MessagesSquare } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { requireUser } from "@/lib/auth/session";
 import { displayName, formatDate, pageNumber } from "@/lib/format";
-import { formatAttachmentSize } from "@/lib/storage";
+import { MessageAttachment } from "@/features/messages/attachment";
 import { UUID_PATTERN } from "@/features/posts/validation";
 import { getConversations, getConversationMessages } from "@/features/messages/data";
 import { MessageForm, RefreshMessagesButton } from "@/features/messages/forms";
@@ -74,14 +74,9 @@ export default async function MessagesPage({ searchParams }: {
                 className={`${styles.message} ${message.sender_id === user.id ? styles.mine : ""}`}>
                 <span className="sr-only">{message.sender_id === user.id ? "Ты" : name}: </span>
                 {message.body && <p>{message.body}</p>}
-                {message.attachment_path && <div className={styles.attachment}>
-                  <Paperclip size={18} aria-hidden="true" />
-                  <div><strong>{message.attachment_name}</strong>
-                    <p className="muted small">{message.attachment_name?.split(".").pop()?.toUpperCase()} · {formatAttachmentSize(message.attachment_size ?? 0)}</p>
-                    {message.attachmentUrl ? <a href={message.attachmentUrl} className="text-link" target="_blank" rel="noopener noreferrer">Скачать файл</a>
-                      : <span className="muted small">Файл недоступен. Нажми «Обновить».</span>}
-                  </div>
-                </div>}
+                {message.attachment_path && <MessageAttachment name={message.attachment_name ?? "Файл"}
+                  type={message.attachment_type ?? ""} size={message.attachment_size ?? 0}
+                  url={message.attachmentUrl} downloadUrl={message.attachmentDownloadUrl} />}
                 <time dateTime={message.created_at}>{formatDate(message.created_at)}</time>
               </li>)}
             </ol> : <p className={styles.empty}>{page > 1 ? "На этой странице нет сообщений." : "Пока тихо. Напиши первое сообщение."}</p>}

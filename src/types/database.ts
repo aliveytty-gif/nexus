@@ -1,4 +1,4 @@
-// Schema contract through 202609240001_social_mvp.sql.
+// Schema contract through 202610020001_media_friends_music.sql.
 // Regenerate from your Supabase project after changing migrations (see README).
 export type Json =
   | string
@@ -11,6 +11,33 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      audio_tracks: {
+        Row: { id: string; owner_id: string; title: string; artist: string; file_path: string; duration: number | null; created_at: string };
+        Insert: { id?: string; owner_id: string; title: string; artist?: string; file_path: string; duration?: number | null; created_at?: string };
+        Update: { title?: string; artist?: string };
+        Relationships: [{
+          foreignKeyName: "audio_tracks_owner_id_fkey"; columns: ["owner_id"]; isOneToOne: false;
+          referencedRelation: "profiles"; referencedColumns: ["id"];
+        }];
+      };
+      playlists: {
+        Row: { id: string; owner_id: string; name: string; created_at: string };
+        Insert: { id?: string; owner_id: string; name: string; created_at?: string };
+        Update: { name?: string };
+        Relationships: [{
+          foreignKeyName: "playlists_owner_id_fkey"; columns: ["owner_id"]; isOneToOne: false;
+          referencedRelation: "profiles"; referencedColumns: ["id"];
+        }];
+      };
+      playlist_tracks: {
+        Row: { playlist_id: string; track_id: string; position: number; added_at: string };
+        Insert: { playlist_id: string; track_id: string; position?: number; added_at?: string };
+        Update: { position?: number };
+        Relationships: [
+          { foreignKeyName: "playlist_tracks_playlist_id_fkey"; columns: ["playlist_id"]; isOneToOne: false; referencedRelation: "playlists"; referencedColumns: ["id"] },
+          { foreignKeyName: "playlist_tracks_track_id_fkey"; columns: ["track_id"]; isOneToOne: false; referencedRelation: "audio_tracks"; referencedColumns: ["id"] },
+        ];
+      };
       profiles: {
         Row: {
           id: string;
@@ -187,6 +214,38 @@ export type Database = {
           {
             foreignKeyName: "community_members_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      friendships: {
+        Row: {
+          id: string;
+          requester_id: string;
+          addressee_id: string;
+          status: "pending" | "accepted";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          requester_id: string;
+          addressee_id: string;
+          status?: "pending" | "accepted";
+        };
+        Update: { status?: "pending" | "accepted" };
+        Relationships: [
+          {
+            foreignKeyName: "friendships_requester_id_fkey";
+            columns: ["requester_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "friendships_addressee_id_fkey";
+            columns: ["addressee_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];

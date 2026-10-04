@@ -6,6 +6,8 @@ import {
   UserRound,
   MessagesSquare,
   UsersRound,
+  Music2,
+  Users,
   Map,
   Sparkles,
 } from "lucide-react";
@@ -36,6 +38,13 @@ export function Navigation({ username }: { username: string }) {
       icon: UsersRound,
       active: pathname.startsWith("/communities"),
     },
+    {
+      href: "/music",
+      label: "Музыка",
+      icon: Music2,
+      active: pathname === "/music",
+    },
+    { href: "/people", label: "Люди и друзья", icon: Users, active: pathname === "/people" },
     {
       href: "/map",
       label: "Карта",

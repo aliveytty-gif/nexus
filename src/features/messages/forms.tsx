@@ -55,7 +55,7 @@ export function MessageForm({ conversationId }: { conversationId: string }) {
             finally { setUploading(false); }
           }} />
         <span id="message-file-help" className="muted small" role="status">
-          {uploading ? "Обрабатываем файл…" : "Один файл до 10 МБ: JPG, PNG, WEBP, PDF, TXT, DOC, DOCX или ZIP."}
+          {uploading ? "Обрабатываем файл…" : "Один файл до 10 МБ: фото, MP3, M4A, WAV, PDF, TXT, DOC, DOCX или ZIP."}
         </span>
         {attachment && <div>
           <p style={{ overflowWrap: "anywhere" }}>{attachment.name} · {formatAttachmentSize(attachment.size)}</p>

@@ -15,6 +15,8 @@ describe("Social MVP PostgreSQL permissions", { concurrency: false }, () => {
   let group: string;
   let channel: string;
   let post: string;
+  let audioTrack: string;
+  const audioPath = `${ALICE}/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa-track.mp3`;
   const path = () => `${conversation}/${ALICE}/${FILE}`;
 
   async function asUser<T>(id: string | null, operation: () => Promise<T>, role = "authenticated") {
@@ -85,6 +87,7 @@ describe("Social MVP PostgreSQL permissions", { concurrency: false }, () => {
         [conversation, ALICE]);
     });
     await db.exec(await readFile(new URL("../supabase/migrations/202609240001_social_mvp.sql", import.meta.url), "utf8"));
+    await db.exec(await readFile(new URL("../supabase/migrations/202610020001_media_friends_music.sql", import.meta.url), "utf8"));
     await asUser(ALICE, async () => {
       group = await scalar("select public.create_community('Group', '', 'group', null) as id", []);
       channel = await scalar("select public.create_community('Channel', '', 'channel', null) as id", []);
@@ -101,7 +104,8 @@ describe("Social MVP PostgreSQL permissions", { concurrency: false }, () => {
     assert.equal(Number(bucket.file_size_limit), 10 * 1024 * 1024);
     assert.deepEqual(bucket.allowed_mime_types, ["image/jpeg", "image/png", "image/webp", "application/pdf", "text/plain",
       "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/zip", "application/x-zip-compressed"]);
+      "application/zip", "application/x-zip-compressed", "audio/mpeg", "audio/mp3", "audio/mp4", "audio/x-m4a",
+      "audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave"]);
     await asUser(ALICE, async () => {
       assert.equal((await db.query("select * from public.posts where community_id is null")).rows.length, 1);
       assert.equal((await db.query("select * from public.messages where attachment_path is null")).rows.length, 1);
@@ -223,12 +227,159 @@ describe("Social MVP PostgreSQL permissions", { concurrency: false }, () => {
     await asUser(BOB, () => publish(BOB, channel));
   });
 
+  it("registers only valid owned audio and shares registered tracks without granting ownership", async () => {
+    const uploadAudio = (name: string, mime = "audio/mpeg", size = 12) => db.query(
+      "insert into storage.objects (bucket_id, name, metadata) values ('audio', $1, $2)", [name, { mimetype: mime, size }]);
+    const register = (file: string, owner = ALICE) => scalar(
+      "insert into public.audio_tracks (owner_id, title, file_path) values ($1, 'Test audio', $2) returning id", [owner, file]);
+    const bucket = (await db.query<{ public: boolean; file_size_limit: number }>("select * from storage.buckets where id = 'audio'")).rows[0];
+    assert.equal(bucket.public, false);
+    assert.equal(Number(bucket.file_size_limit), 50 * 1024 * 1024);
+    await asUser(ALICE, async () => {
+      await uploadAudio(audioPath);
+      for (const invalid of [audioPath.replace(ALICE, BOB), `${ALICE}/../track.mp3`, audioPath.replace(".mp3", ".txt")]) {
+        await assert.rejects(() => uploadAudio(invalid), { code: "42501" });
+      }
+      await assert.rejects(() => register(audioPath.replace("track.mp3", "missing.mp3")), { code: "23514" });
+      for (const [name, mime, size] of [["large", "audio/mpeg", 52428801], ["empty", "audio/mpeg", 0],
+        ["text", "text/plain", 12]] as const) {
+        const invalid = audioPath.replace("track.mp3", `${name}.mp3`);
+        await uploadAudio(invalid, mime, size);
+        await assert.rejects(() => register(invalid), { code: "23514" });
+      }
+    });
+    await asUser(BOB, async () => {
+      assert.equal((await db.query("select * from storage.objects where bucket_id = 'audio' and name = $1", [audioPath])).rows.length, 0);
+    });
+    audioTrack = await asUser(ALICE, () => register(audioPath));
+    await asUser(BOB, async () => {
+      assert.equal((await db.query("select * from public.audio_tracks where id = $1", [audioTrack])).rows.length, 1);
+      assert.equal((await db.query("select * from storage.objects where bucket_id = 'audio' and name = $1", [audioPath])).rows.length, 1);
+      await assert.rejects(() => uploadAudio(audioPath), { code: "42501" });
+      await assert.rejects(() => register(audioPath, BOB), { code: "42501" });
+      await assert.rejects(() => register(audioPath, ALICE), { code: "42501" });
+      assert.equal((await db.query("delete from storage.objects where bucket_id = 'audio' returning id")).rows.length, 0);
+      assert.equal((await db.query("delete from public.audio_tracks where id = $1 returning id", [audioTrack])).rows.length, 0);
+    });
+    await asUser(ALICE, async () => {
+      await assert.rejects(() => db.query("update public.audio_tracks set owner_id = $1 where id = $2", [BOB, audioTrack]), { code: "42501" });
+      assert.equal((await db.query("update storage.objects set name = name where bucket_id = 'audio' returning id")).rows.length, 0);
+    });
+  });
+
+  it("keeps playlists private while letting each owner add and remove shared tracks", async () => {
+    const playlist = await asUser(ALICE, () => scalar(
+      "insert into public.playlists (owner_id, name) values ($1, 'Private list') returning id", [ALICE]));
+    const add = (id: string) => db.query("insert into public.playlist_tracks (playlist_id, track_id) values ($1, $2)", [id, audioTrack]);
+    await asUser(ALICE, async () => {
+      await add(playlist);
+      await assert.rejects(() => add(playlist), { code: "23505" });
+    });
+    await asUser(BOB, async () => {
+      assert.equal((await db.query("select * from public.playlists where id = $1", [playlist])).rows.length, 0);
+      assert.equal((await db.query("select * from public.playlist_tracks where playlist_id = $1", [playlist])).rows.length, 0);
+      await assert.rejects(() => add(playlist), { code: "42501" });
+      await assert.rejects(() => db.query("insert into public.playlists (owner_id, name) values ($1, 'Forged')", [ALICE]), { code: "42501" });
+      await assert.rejects(() => db.query("update public.playlists set name = 'Stolen' where id = $1", [playlist]), { code: "42501" });
+      assert.equal((await db.query("delete from public.playlist_tracks where playlist_id = $1 returning track_id", [playlist])).rows.length, 0);
+      assert.equal((await db.query("delete from public.playlists where id = $1 returning id", [playlist])).rows.length, 0);
+      const own = await scalar("insert into public.playlists (owner_id, name) values ($1, 'My list') returning id", [BOB]);
+      await add(own);
+      assert.equal((await db.query("select * from public.playlist_tracks where playlist_id = $1", [own])).rows.length, 1);
+      assert.equal((await db.query("delete from public.playlist_tracks where playlist_id = $1 returning track_id", [own])).rows.length, 1);
+      assert.equal((await db.query("delete from public.playlists where id = $1 returning id", [own])).rows.length, 1);
+    });
+    await asUser(ALICE, async () => {
+      assert.equal((await db.query("delete from public.playlist_tracks where playlist_id = $1 returning track_id", [playlist])).rows.length, 1);
+      assert.equal((await db.query("delete from public.playlists where id = $1 returning id", [playlist])).rows.length, 1);
+    });
+  });
+
+  it("accepts audio messages for participants without exposing their private files to the music library", async () => {
+    for (const [extension, mime] of [["mp3", "audio/mpeg"], ["m4a", "audio/mp4"], ["wav", "audio/wav"]]) {
+      const audioMessage = path().replace("notes.txt", `voice.${extension}`);
+      await asUser(ALICE, async () => {
+        await upload(audioMessage, mime);
+        await attach({ filePath: audioMessage, name: `voice.${extension}`, mime });
+      });
+      await asUser(BOB, async () => {
+        assert.equal((await db.query("select * from public.messages where attachment_path = $1", [audioMessage])).rows.length, 1);
+        assert.equal((await db.query("select * from storage.objects where bucket_id = 'message-files' and name = $1", [audioMessage])).rows.length, 1);
+        assert.equal((await db.query("delete from storage.objects where name = $1 returning id", [audioMessage])).rows.length, 0);
+      });
+      await asUser(EVE, async () => {
+        assert.equal((await db.query("select * from public.audio_tracks where id = $1", [audioTrack])).rows.length, 1);
+        assert.equal((await db.query("select * from public.messages where attachment_path = $1", [audioMessage])).rows.length, 0);
+        assert.equal((await db.query("select * from storage.objects where name = $1", [audioMessage])).rows.length, 0);
+        await assert.rejects(() => attach({ filePath: audioMessage, name: `voice.${extension}`, mime, sender: EVE }), { code: "42501" });
+      });
+    }
+  });
+
+  it("keeps friendship requests private and lets only the recipient accept an immutable pair", async () => {
+    let friendship: string;
+    await asUser(ALICE, async () => {
+      friendship = await scalar("insert into public.friendships (requester_id, addressee_id) values ($1, $2) returning id", [ALICE, BOB]);
+      assert.deepEqual((await db.query("select requester_id, addressee_id, status from public.friendships where id = $1", [friendship])).rows,
+        [{ requester_id: ALICE, addressee_id: BOB, status: "pending" }]);
+      await assert.rejects(() => db.query("insert into public.friendships (requester_id, addressee_id) values ($1, $2)",
+        [ALICE, BOB]), { code: "23505" });
+      await assert.rejects(() => db.query("insert into public.friendships (requester_id, addressee_id) values ($1, $1)",
+        [ALICE]), { code: "23514" });
+      assert.equal((await db.query("update public.friendships set status = 'accepted' where id = $1 returning id", [friendship])).rows.length, 0);
+    });
+    await asUser(EVE, async () => {
+      assert.equal((await db.query("select * from public.friendships")).rows.length, 0);
+      assert.equal((await db.query("update public.friendships set status = 'accepted' returning id")).rows.length, 0);
+      assert.equal((await db.query("delete from public.friendships returning id")).rows.length, 0);
+      await assert.rejects(() => db.query("insert into public.friendships (requester_id, addressee_id) values ($1, $2)",
+        [ALICE, EVE]), { code: "42501" });
+      await assert.rejects(() => db.query("insert into public.friendships (requester_id, addressee_id, status) values ($1, $2, 'accepted')",
+        [EVE, ALICE]), { code: "42501" });
+    });
+    await asUser(BOB, async () => {
+      assert.equal((await db.query("select * from public.friendships where id = $1", [friendship])).rows.length, 1);
+      await assert.rejects(() => db.query("insert into public.friendships (requester_id, addressee_id) values ($1, $2)",
+        [BOB, ALICE]), { code: "23505" });
+      for (const column of ["id", "requester_id", "addressee_id"]) {
+        await assert.rejects(() => db.query(`update public.friendships set ${column} = $1 where id = $2`, [EVE, friendship]), { code: "42501" });
+      }
+      await assert.rejects(() => db.query("update public.friendships set created_at = now(), updated_at = now() where id = $1",
+        [friendship]), { code: "42501" });
+      await assert.rejects(() => db.query("update public.friendships set status = 'pending' where id = $1", [friendship]), { code: "42501" });
+      const accepted = (await db.query<{ status: string; updated_at: string; created_at: string }>(
+        "update public.friendships set status = 'accepted' where id = $1 returning status, updated_at, created_at", [friendship])).rows[0];
+      assert.equal(accepted.status, "accepted");
+      assert.ok(new Date(accepted.updated_at).getTime() >= new Date(accepted.created_at).getTime());
+      assert.equal((await db.query("update public.friendships set status = 'pending' where id = $1 returning id", [friendship])).rows.length, 0);
+    });
+    await asUser(ALICE, async () => {
+      assert.equal((await db.query<{ status: string }>("select status from public.friendships where id = $1", [friendship])).rows[0].status, "accepted");
+      assert.equal((await db.query("delete from public.friendships where id = $1 returning id", [friendship])).rows.length, 1);
+    });
+  });
+
+  it("allows request cancellation, rejection and a new request after removal", async () => {
+    const request = () => scalar("insert into public.friendships (requester_id, addressee_id) values ($1, $2) returning id", [ALICE, BOB]);
+    const remove = (id: string) => db.query("delete from public.friendships where id = $1 returning id", [id]);
+    let friendship = await asUser(ALICE, request);
+    assert.equal((await asUser(ALICE, () => remove(friendship))).rows.length, 1);
+    friendship = await asUser(ALICE, request);
+    assert.equal((await asUser(BOB, () => remove(friendship))).rows.length, 1);
+    friendship = await asUser(ALICE, request);
+    await asUser(BOB, async () => {
+      await db.query("update public.friendships set status = 'accepted' where id = $1", [friendship]);
+      assert.equal((await remove(friendship)).rows.length, 1);
+    });
+    await asUser(ALICE, async () => { assert.equal((await db.query("select * from public.friendships")).rows.length, 0); });
+  });
+
   it("denies anonymous access to social data and private files", async () => {
     await asUser(null, async () => {
-      for (const table of ["messages", "post_likes", "communities", "community_members"]) {
+      for (const table of ["messages", "post_likes", "communities", "community_members", "friendships", "audio_tracks", "playlists", "playlist_tracks"]) {
         await assert.rejects(() => db.query(`select * from public.${table}`), { code: "42501" });
       }
-      assert.equal((await db.query("select * from storage.objects where bucket_id = 'message-files'")).rows.length, 0);
+      assert.equal((await db.query("select * from storage.objects where bucket_id in ('message-files', 'audio')")).rows.length, 0);
       await assert.rejects(() => scalar("select public.create_community('Anon', '', 'group', null) as id", []), { code: "42501" });
     }, "anon");
   });
