@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { MessageCircle, Paperclip, RefreshCw, Send } from "lucide-react";
+import { FileText, ImagePlus, MessageCircle, Music2, RefreshCw, Send, X } from "lucide-react";
 import { Notice } from "@/components/ui/notice";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { createClient } from "@/lib/supabase/client";
@@ -26,6 +26,8 @@ export function MessageForm({ conversationId }: { conversationId: string }) {
   const [attachment, setAttachment] = useState<MessageAttachment | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [preview, setPreview] = useState<string | null>(null);
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
   return (
     <form action={action} className="form-stack" aria-busy={pending || uploading}
       onSubmit={(event) => { if (uploading) event.preventDefault(); }}>
@@ -41,25 +43,41 @@ export function MessageForm({ conversationId }: { conversationId: string }) {
       <input type="hidden" name="attachment_type" value={attachment?.type ?? ""} />
       <input type="hidden" name="attachment_size" value={attachment?.size ?? ""} />
       <div className="field">
-        <label className="label" htmlFor="message-file"><Paperclip size={16} aria-hidden="true" /> Прикрепить файл</label>
-        <input id="message-file" type="file" className="input" accept={MESSAGE_FILE_ACCEPT}
-          disabled={pending || uploading || !!attachment} aria-describedby="message-file-help"
+        {!attachment && <label className="file-picker" htmlFor="message-file">
+          <span className="file-picker-icon"><ImagePlus size={24} aria-hidden="true" /></span>
+          <span className="file-picker-copy">
+            <strong>{uploading ? "Загружаем файл…" : "Добавить фото или аудио"}</strong>
+            <span className="muted small">Выбери с устройства · можно прикрепить документ</span>
+          </span>
+        <input id="message-file" type="file" accept={MESSAGE_FILE_ACCEPT}
+          disabled={pending || uploading} aria-label="Добавить фото или аудио" aria-describedby="message-file-help"
           onChange={async (event) => {
             const file = event.target.files?.[0];
             event.target.value = "";
             if (!file) return;
             setUploading(true);
             setUploadError("");
-            try { setAttachment(await uploadMessageFile(createClient(), conversationId, file)); }
+            try {
+              setAttachment(await uploadMessageFile(createClient(), conversationId, file));
+              if (file.type.startsWith("image/")) setPreview(URL.createObjectURL(file));
+            }
             catch (error) { setUploadError(error instanceof Error ? error.message : "Не удалось загрузить файл."); }
             finally { setUploading(false); }
           }} />
+        </label>}
         <span id="message-file-help" className="muted small" role="status">
           {uploading ? "Обрабатываем файл…" : "Один файл до 10 МБ: фото, MP3, M4A, WAV, PDF, TXT, DOC, DOCX или ZIP."}
         </span>
-        {attachment && <div>
-          <p style={{ overflowWrap: "anywhere" }}>{attachment.name} · {formatAttachmentSize(attachment.size)}</p>
-          <button type="button" className="button button-secondary" disabled={pending || uploading}
+        {attachment && <div className="file-selection">
+          {preview ? /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={preview} alt="Выбранное фото" /> : attachment.type.startsWith("audio/")
+              ? <Music2 size={24} aria-hidden="true" /> : <FileText size={24} aria-hidden="true" />}
+          <div className="file-selection-info">
+            <strong>{attachment.name}</strong>
+            <p className="muted small">{formatAttachmentSize(attachment.size)} · Готов к отправке</p>
+          </div>
+          <button type="button" className="button button-quiet" disabled={pending || uploading}
+            aria-label="Убрать файл" title="Убрать файл"
             onClick={async () => {
               setUploading(true);
               setUploadError("");
@@ -67,9 +85,10 @@ export function MessageForm({ conversationId }: { conversationId: string }) {
                 const { error } = await createClient().storage.from("message-files").remove([attachment.path]);
                 if (error) throw error;
                 setAttachment(null);
+                setPreview(null);
               } catch { setUploadError("Не удалось убрать файл. Повторите попытку."); }
               finally { setUploading(false); }
-            }}>Убрать файл</button>
+            }}><X size={18} aria-hidden="true" /></button>
         </div>}
         {uploadError && <Notice tone="error">{uploadError}</Notice>}
       </div>

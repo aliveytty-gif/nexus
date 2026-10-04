@@ -295,6 +295,33 @@ describe("Social MVP PostgreSQL permissions", { concurrency: false }, () => {
     });
   });
 
+  it("lets only the audio owner delete its file and removes the track from every playlist", async () => {
+    const filePath = `${ALICE}/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb-delete.wav`;
+    const track = await asUser(ALICE, async () => {
+      await db.query("insert into storage.objects (bucket_id, name, metadata) values ('audio', $1, $2)",
+        [filePath, { mimetype: "audio/wav", size: 100 }]);
+      return scalar("insert into public.audio_tracks (owner_id, title, file_path) values ($1, 'Delete test', $2) returning id", [ALICE, filePath]);
+    });
+    for (const owner of [ALICE, BOB]) await asUser(owner, async () => {
+      const playlist = await scalar("insert into public.playlists (owner_id, name) values ($1, 'Deletion check') returning id", [owner]);
+      await db.query("insert into public.playlist_tracks (playlist_id, track_id) values ($1, $2)", [playlist, track]);
+    });
+    await asUser(BOB, async () => {
+      assert.equal((await db.query("delete from storage.objects where bucket_id = 'audio' and name = $1 returning id", [filePath])).rows.length, 0);
+      assert.equal((await db.query("delete from public.audio_tracks where id = $1 returning id", [track])).rows.length, 0);
+      assert.equal((await db.query("select * from public.playlist_tracks where track_id = $1", [track])).rows.length, 1);
+    });
+    await asUser(ALICE, async () => {
+      assert.equal((await db.query("delete from storage.objects where bucket_id = 'audio' and name = $1 returning id", [filePath])).rows.length, 1);
+      assert.equal((await db.query("delete from public.audio_tracks where id = $1 returning id", [track])).rows.length, 1);
+    });
+    for (const viewer of [ALICE, BOB]) await asUser(viewer, async () => {
+      assert.equal((await db.query("select * from public.audio_tracks where id = $1", [track])).rows.length, 0);
+      assert.equal((await db.query("select * from public.playlist_tracks where track_id = $1", [track])).rows.length, 0);
+      assert.equal((await db.query("select * from storage.objects where bucket_id = 'audio' and name = $1", [filePath])).rows.length, 0);
+    });
+  });
+
   it("accepts audio messages for participants without exposing their private files to the music library", async () => {
     for (const [extension, mime] of [["mp3", "audio/mpeg"], ["m4a", "audio/mp4"], ["wav", "audio/wav"]]) {
       const audioMessage = path().replace("notes.txt", `voice.${extension}`);

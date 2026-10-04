@@ -28,6 +28,8 @@
 .fileCard > div { min-width: 0; }
 .attachment strong { display: block; font-size: .9rem; }
 .attachment a { display: inline-block; margin-top: 6px; }
+.attachment .fileLink { margin-top: 0; text-decoration: underline; text-underline-offset: 3px; }
+.fileLink:hover { color: var(--primary-hover); }
 .message time { display: block; color: var(--muted); font-size: .7rem; margin-top: 7px; }
 .empty { padding: 38px 18px; text-align: center; color: var(--muted); }
 .empty svg { margin: 0 auto 14px; color: var(--primary); }

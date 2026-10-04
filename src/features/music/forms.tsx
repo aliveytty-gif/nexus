@@ -2,11 +2,12 @@
 
 import { useActionState, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Music2, Trash2, Upload } from "lucide-react";
 import { Notice } from "@/components/ui/notice";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { createClient } from "@/lib/supabase/client";
-import { AUDIO_ACCEPT, uploadAudio, validateAudioFile } from "@/lib/storage";
-import { createTrackAction, createPlaylistAction, playlistTrackAction, type MusicFormState } from "./actions";
+import { AUDIO_ACCEPT, formatAttachmentSize, uploadAudio, validateAudioFile } from "@/lib/storage";
+import { createTrackAction, createPlaylistAction, deleteTrackAction, playlistTrackAction, type MusicFormState } from "./actions";
 
 export function AudioUploadForm() {
   const router = useRouter();
@@ -42,11 +43,18 @@ export function AudioUploadForm() {
   return <form action={action} className="card form-stack" aria-busy={pending}>
     <h2>Загрузить аудио</h2>
     <div className="field">
-      <label className="label" htmlFor="audio-file">Аудиофайл</label>
-      <input ref={fileInput} className="input" id="audio-file" type="file" accept={AUDIO_ACCEPT}
-        required disabled={pending} aria-describedby="audio-file-help"
+      <label className="file-picker" htmlFor="audio-file">
+        <span className="file-picker-icon"><Upload size={24} aria-hidden="true" /></span>
+        <span className="file-picker-copy"><strong>{file ? "Заменить аудио" : "Выбрать аудио"}</strong>
+          <span className="muted small">MP3, M4A или WAV · до 50 МБ</span></span>
+      <input ref={fileInput} id="audio-file" type="file" accept={AUDIO_ACCEPT}
+        required disabled={pending} aria-label="Выбрать аудио" aria-describedby="audio-file-help"
         onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-      <p id="audio-file-help" className="muted small">MP3, M4A или WAV до 50 МБ. Аудиозапись смогут слушать пользователи NEXUS.</p>
+      </label>
+      {file && <div className="file-selection"><Music2 size={24} aria-hidden="true" />
+        <div className="file-selection-info"><strong>{file.name}</strong><p className="muted small">{formatAttachmentSize(file.size)}</p></div>
+      </div>}
+      <p id="audio-file-help" className="muted small">Аудиозапись смогут слушать пользователи NEXUS.</p>
     </div>
     <div className="field">
       <label className="label" htmlFor="audio-title">Название</label>
@@ -60,6 +68,22 @@ export function AudioUploadForm() {
     {state.error && <Notice tone="error">{state.error}</Notice>}
     {state.success && <Notice tone="success">Аудиозапись добавлена.</Notice>}
     <div><SubmitButton pendingText="Загружаем…" disabled={!file}>Загрузить аудио</SubmitButton></div>
+  </form>;
+}
+
+export function DeleteTrackForm({ trackId, title }: { trackId: string; title: string }) {
+  const [confirm, setConfirm] = useState(false);
+  const [state, action, pending] = useActionState(deleteTrackAction.bind(null, trackId), {});
+  if (!confirm) return <div><button type="button" className="button button-quiet" onClick={() => setConfirm(true)}>
+    <Trash2 size={16} aria-hidden="true" /> Удалить аудио
+  </button></div>;
+  return <form action={action} className="form-stack" aria-busy={pending}>
+    <p className="muted small">Удалить «{title}»? Файл исчезнет из библиотеки и всех плейлистов. Восстановить его можно только повторной загрузкой.</p>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      <SubmitButton className="button button-danger" pendingText="Удаляем…">Удалить навсегда</SubmitButton>
+      <button type="button" className="button button-secondary" disabled={pending} onClick={() => setConfirm(false)}>Отмена</button>
+    </div>
+    {state.error && <Notice tone="error">{state.error}</Notice>}
   </form>;
 }
 
