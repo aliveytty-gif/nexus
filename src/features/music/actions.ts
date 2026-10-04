@@ -8,6 +8,26 @@ import { UUID_PATTERN } from "@/features/posts/validation";
 
 export type MusicFormState = { error?: string; success?: boolean };
 
+export async function deleteTrackAction(trackId: string): Promise<MusicFormState> {
+  const user = await requireUser("/music");
+  if (!UUID_PATTERN.test(trackId)) return { error: "Аудиозапись не найдена." };
+  const supabase = await createClient();
+  const { data: track, error: lookupError } = await supabase.from("audio_tracks")
+    .select("file_path").eq("id", trackId).eq("owner_id", user.id).maybeSingle();
+  if (lookupError) return { error: "Не удалось найти аудиозапись. Повторите попытку." };
+  if (!track) {
+    revalidatePath("/music");
+    return { success: true };
+  }
+  if (!track.file_path.startsWith(`${user.id}/`)) return { error: "Не удалось проверить владельца файла." };
+  const { error: storageError } = await supabase.storage.from("audio").remove([track.file_path]);
+  if (storageError) return { error: "Не удалось удалить файл. Аудиозапись сохранена — попробуйте ещё раз." };
+  const { error } = await supabase.from("audio_tracks").delete().eq("id", trackId).eq("owner_id", user.id);
+  revalidatePath("/music");
+  if (error) return { error: "Файл удалён, но не удалось убрать аудиозапись. Нажмите «Удалить» ещё раз." };
+  return { success: true };
+}
+
 export async function createTrackAction(
   _previous: MusicFormState, formData: FormData,
 ): Promise<MusicFormState> {

@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth/session";
 import { pageNumber } from "@/lib/format";
 import { UUID_PATTERN } from "@/features/posts/validation";
 import { AudioPlayer } from "@/components/ui/audio-player";
-import { AudioUploadForm, PlaylistForm, TrackPlaylistForm } from "@/features/music/forms";
+import { AudioUploadForm, DeleteTrackForm, PlaylistForm, TrackPlaylistForm } from "@/features/music/forms";
 import { getMusicTracks, getPlaylists, getPlaylistTracks, TRACKS_PER_PAGE } from "@/features/music/data";
 
 export const metadata = { title: "Музыка" };
@@ -58,6 +58,7 @@ export default async function MusicPage({ searchParams }: {
           <p className="muted">Аудио недоступно. Обнови страницу и попробуй снова.</p>}
         <TrackPlaylistForm trackId={track.id} playlists={playlists} playlistId={playlistId} />
         {!playlistId && !playlists.length && <Link className="text-link" href="/music?tab=playlists">Создать плейлист →</Link>}
+        {track.owner_id === user.id && <DeleteTrackForm trackId={track.id} title={track.title} />}
       </article>)}
       {result && !result.tracks.length && <div className="card empty-state">
         <h2>{selectedPlaylist ? "В плейлисте пока нет треков" : "Пока нет аудиозаписей"}</h2>
