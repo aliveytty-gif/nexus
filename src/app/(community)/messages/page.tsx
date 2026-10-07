@@ -74,13 +74,12 @@ export default async function MessagesPage({ searchParams }: {
                 className={`${styles.message} ${message.sender_id === user.id ? styles.mine : ""}`}>
                 <span className="sr-only">{message.sender_id === user.id ? "Ты" : name}: </span>
                 {message.body && <p>{message.body}</p>}
-                {message.attachment_path && <MessageAttachment name={message.attachment_name ?? "Файл"}
-                  type={message.attachment_type ?? ""} size={message.attachment_size ?? 0}
-                  url={message.attachmentUrl} downloadUrl={message.attachmentDownloadUrl} />}
+                {message.mediaAttachments.map((file) => <MessageAttachment key={file.path}
+                  name={file.name} type={file.type} size={file.size} url={file.url} downloadUrl={file.downloadUrl} />)}
                 <time dateTime={message.created_at}>{formatDate(message.created_at)}</time>
               </li>)}
             </ol> : <p className={styles.empty}>{page > 1 ? "На этой странице нет сообщений." : "Пока тихо. Напиши первое сообщение."}</p>}
-            {thread.messages.some((message) => message.attachment_path) && <p className="muted small">Ссылки на файлы действуют 10 минут. Если ссылка истекла, нажми «Обновить».</p>}
+            {thread.messages.some((message) => message.mediaAttachments.length) && <p className="muted small">Ссылки на файлы действуют 10 минут. Если ссылка истекла, нажми «Обновить».</p>}
             {participant && <MessageForm key={`${selected.id}-${query.sent ?? ""}`} conversationId={selected.id} />}
           </> : <div className={styles.empty}>
             <MessagesSquare size={38} aria-hidden="true" /><h2>Здесь начинается разговор</h2>

@@ -15,6 +15,8 @@ const audioTypes: Record<string, readonly string[]> = {
 };
 const messageFileTypes: Record<string, readonly string[]> = {
   ...audioTypes,
+  mp4: ["video/mp4"],
+  webm: ["video/webm"],
   jpg: ["image/jpeg"],
   jpeg: ["image/jpeg"],
   png: ["image/png"],
@@ -27,6 +29,9 @@ const messageFileTypes: Record<string, readonly string[]> = {
 };
 export const MESSAGE_FILE_ACCEPT = Object.keys(messageFileTypes).map((extension) => `.${extension}`).join(",");
 export type MessageAttachment = { path: string; name: string; type: string; size: number };
+export const MAX_ATTACHMENTS = 10;
+export const PHOTO_VIDEO_ACCEPT = ".jpg,.jpeg,.png,.webp,.mp4,.webm";
+export type AttachmentScope = "message" | "post";
 const extensions: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -59,7 +64,7 @@ export function validateMessageFile(file: Pick<File, "name" | "type" | "size">):
     character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127 || character === "/" || character === "\\"))
     return "Имя файла должно быть от 1 до 255 символов без слешей и управляющих символов.";
   if (!Object.hasOwn(messageFileTypes, extension) || !messageFileTypes[extension].includes(file.type))
-    return "Выберите фото, MP3, M4A, WAV, PDF, TXT, DOC, DOCX или ZIP с подходящим типом файла.";
+    return "Выберите фото, MP4, WEBM, MP3, M4A, WAV, PDF, TXT, DOC, DOCX или ZIP с подходящим типом файла.";
   if (!Number.isInteger(file.size) || file.size < 1 || file.size > MESSAGE_FILE_MAX_BYTES)
     return "Размер файла должен быть от 1 байта до 10 МБ.";
   return null;
@@ -68,7 +73,80 @@ export function validateMessageFile(file: Pick<File, "name" | "type" | "size">):
 export function ownedMessageFilePath(path: string, conversationId: string, userId: string): boolean {
   const prefix = `${conversationId}/${userId}/`;
   const filename = path.slice(prefix.length);
-  return path.startsWith(prefix) && filename.length <= 217 && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-[A-Za-z0-9_][A-Za-z0-9._-]*\.(jpg|jpeg|png|webp|pdf|txt|doc|docx|zip|mp3|m4a|wav)$/.test(filename);
+  return path.startsWith(prefix) && filename.length <= 217 && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-[A-Za-z0-9_][A-Za-z0-9._-]*\.(jpg|jpeg|png|webp|pdf|txt|doc|docx|zip|mp3|m4a|wav|mp4|webm)$/.test(filename);
+}
+
+export function ownedPostFilePath(path: string, userId: string): boolean {
+  return ownedMessageFilePath(`post/${path}`, "post", userId);
+}
+
+/** Parse DB or form metadata without accepting arbitrary URLs or extra fields. */
+export function parseAttachments(value: unknown): MessageAttachment[] {
+  if (!Array.isArray(value) || value.length > MAX_ATTACHMENTS)
+    throw new Error(`Можно прикрепить до ${MAX_ATTACHMENTS} файлов.`);
+  const paths = new Set<string>();
+  return value.map((item: unknown) => {
+    if (!item || typeof item !== "object" || Array.isArray(item) || Object.keys(item).sort().join(",") !== "name,path,size,type")
+      throw new Error("Прикрепите файлы заново.");
+    const data = item as Record<string, unknown>;
+    if (typeof data.path !== "string" || data.path.length > 400 || typeof data.name !== "string" ||
+      typeof data.type !== "string" || typeof data.size !== "number" || paths.has(data.path))
+      throw new Error("Данные вложения недействительны.");
+    const attachment = { path: data.path, name: data.name, type: data.type, size: data.size };
+    const error = validateMessageFile(attachment);
+    if (error) throw new Error(error);
+    paths.add(attachment.path);
+    return attachment;
+  });
+}
+
+/** A scoped signed Storage upload reports actual bytes without exposing the account session. */
+export async function uploadAttachment(
+  supabase: SupabaseClient<Database>, scope: AttachmentScope, conversationId: string | undefined, file: File,
+  options: { signal: AbortSignal; onProgress: (percent: number) => void; onPath: (path: string) => void },
+): Promise<MessageAttachment> {
+  const validation = validateMessageFile(file);
+  if (validation) throw new Error(validation);
+  options.signal.throwIfAborted();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error("Войдите в аккаунт ещё раз.");
+  options.signal.throwIfAborted();
+  const extension = file.name.split(".").pop()!.toLowerCase();
+  const stem = file.name.slice(0, -(extension.length + 1)).normalize("NFKD")
+    .replace(/[^A-Za-z0-9._-]/g, "-").replace(/^[-.]+|[-.]+$/g, "").slice(0, 160) || "file";
+  const bucket = scope === "message" ? "message-files" : "post-files";
+  const prefix = scope === "message" ? `${conversationId}/${user.id}` : user.id;
+  const path = `${prefix}/${crypto.randomUUID()}-${stem}.${extension}`;
+  options.onPath(path);
+  const { data, error } = await supabase.storage.from(bucket).createSignedUploadUrl(path);
+  options.signal.throwIfAborted();
+  if (error || !data) throw new Error("Не удалось начать загрузку. Проверьте соединение и повторите.");
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const abort = () => xhr.abort();
+    const finish = (error?: Error) => {
+      options.signal.removeEventListener("abort", abort);
+      if (error) reject(error); else resolve();
+    };
+    xhr.open("PUT", data.signedUrl);
+    xhr.timeout = 120_000;
+    const config = getSupabaseConfig();
+    if (config) xhr.setRequestHeader("apikey", config.key);
+    xhr.setRequestHeader("Content-Type", file.type);
+    xhr.setRequestHeader("cache-control", "max-age=3600");
+    xhr.setRequestHeader("x-upsert", "false");
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) options.onProgress(Math.min(100, Math.round(event.loaded / event.total * 100)));
+    };
+    xhr.onload = () => finish(xhr.status >= 200 && xhr.status < 300 ? undefined : new Error("Файл не загрузился. Повторите попытку."));
+    xhr.onerror = () => finish(new Error("Нет соединения. Повторите загрузку."));
+    xhr.ontimeout = () => finish(new Error("Загрузка заняла слишком много времени. Повторите попытку."));
+    xhr.onabort = () => finish(new DOMException("Загрузка отменена", "AbortError"));
+    options.signal.addEventListener("abort", abort, { once: true });
+    if (options.signal.aborted) { finish(new DOMException("Загрузка отменена", "AbortError")); return; }
+    xhr.send(file);
+  });
+  return { path, name: file.name, type: file.type, size: file.size };
 }
 
 export function validateAudioFile(file: Pick<File, "name" | "type" | "size">): string | null {

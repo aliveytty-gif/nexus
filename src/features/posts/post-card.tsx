@@ -6,6 +6,7 @@ import { displayName, formatDate } from "@/lib/format";
 import { isStorageImage } from "@/lib/storage";
 import type { FeedPost } from "./data";
 import { LikeButton } from "./like-button";
+import { MessageAttachment } from "@/features/messages/attachment";
 export function PostCard({
   post,
   detail = false,
@@ -41,12 +42,15 @@ export function PostCard({
           </div>
         </div>
       </header>
-      <p className="post-body">{post.content}</p>
+      {post.content && <p className="post-body">{post.content}</p>}
       {post.image_url && <Image src={post.image_url} alt="Фотография к публикации"
         width={1200} height={800}
         sizes="(max-width: 600px) calc(100vw - 70px), (max-width: 800px) calc(100vw - 270px), (max-width: 1150px) calc(100vw - 340px), 710px"
         unoptimized={!isStorageImage(post.image_url)}
         style={{ width: "100%", height: "auto", maxHeight: 520, objectFit: "contain", borderRadius: 12 }} />}
+      {post.mediaAttachments.length > 0 && <div className="post-attachments">
+        {post.mediaAttachments.map((attachment) => <MessageAttachment key={attachment.path} {...attachment} />)}
+      </div>}
       <footer className="post-footer">
         <LikeButton postId={post.id} liked={post.my_like.length > 0} count={post.likes[0]?.count ?? 0} />
         <Link href={`/posts/${post.id}#comments`}>

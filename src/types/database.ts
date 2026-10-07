@@ -1,4 +1,4 @@
-// Schema contract through 202610020001_media_friends_music.sql.
+// Schema contract through 202610070001_media_attachments.sql.
 // Regenerate from your Supabase project after changing migrations (see README).
 export type Json =
   | string
@@ -86,6 +86,7 @@ export type Database = {
           author_id: string;
           content: string;
           image_url: string | null;
+          attachments: Json;
           community_id: string | null;
           created_at: string;
           updated_at: string;
@@ -95,6 +96,7 @@ export type Database = {
           author_id: string;
           content: string;
           image_url?: string | null;
+          attachments?: Json;
           community_id?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -104,6 +106,7 @@ export type Database = {
           author_id?: string;
           content?: string;
           image_url?: string | null;
+          attachments?: Json;
           community_id?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -289,6 +292,7 @@ export type Database = {
           attachment_name: string | null;
           attachment_type: string | null;
           attachment_size: number | null;
+          attachments: Json;
           created_at: string;
         };
         Insert: {
@@ -300,6 +304,7 @@ export type Database = {
           attachment_name?: string | null;
           attachment_type?: string | null;
           attachment_size?: number | null;
+          attachments?: Json;
           created_at?: string;
         };
         Update: {
@@ -311,6 +316,7 @@ export type Database = {
           attachment_name?: string | null;
           attachment_type?: string | null;
           attachment_size?: number | null;
+          attachments?: Json;
           created_at?: string;
         };
         Relationships: [
