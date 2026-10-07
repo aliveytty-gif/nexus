@@ -21,15 +21,37 @@
 .mine { align-self: flex-end; background: #33335c; }
 .message p { white-space: pre-wrap; }
 .attachment { display: grid; gap: 10px; margin-top: 8px; min-width: 0; max-width: 460px; }
-.mediaImage { display: block; max-width: 100%; max-height: 380px; object-fit: contain; border-radius: 8px; }
-.attachment audio { min-width: min(260px, 60vw) !important; }
-.fileCard { display: flex; gap: 10px; align-items: flex-start; }
-.fileCard > svg { flex-shrink: 0; margin-top: 3px; }
-.fileCard > div { min-width: 0; }
+.mediaImage { display: block; max-width: 100%; max-height: 380px; object-fit: contain; border-radius: 10px; }
+.imagePreview { display: block; width: fit-content; max-width: 100%; cursor: zoom-in; }
+.imageDialog { position: fixed; inset: 0; margin: auto; max-width: min(1000px, 94vw); max-height: 94dvh; padding: 48px 16px 16px; border: 1px solid var(--border); border-radius: 14px; background: #111522; color: var(--foreground); }
+.imageDialog::backdrop { background: #050711d9; }
+.imageDialog img { display: block; max-width: 100%; max-height: calc(94dvh - 110px); object-fit: contain; margin: 0 auto; }
+.imageDialog p { margin-top: 10px; overflow-wrap: anywhere; font-size: .85rem; }
+.imageClose { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 8px; background: #252b40; color: var(--foreground); }
+.mediaVideo { display: block; width: 100%; max-height: 380px; border-radius: 10px; background: #080b12; }
+.mediaCaption { min-width: 0; overflow-wrap: anywhere; }
+.fileCard { display: flex; gap: 10px; align-items: center; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: #11152265; overflow-wrap: anywhere; }
+.fileCard > svg { flex-shrink: 0; color: var(--primary-hover); }
+.fileCard > div { min-width: 0; flex: 1; }
+.fileCard p { margin-top: 3px; }
+.fileOpen { display: flex; gap: 4px; align-items: center; flex-shrink: 0; font-size: .75rem; color: var(--primary-hover); }
 .attachment strong { display: block; font-size: .9rem; }
-.attachment a { display: inline-block; margin-top: 6px; }
-.attachment .fileLink { margin-top: 0; text-decoration: underline; text-underline-offset: 3px; }
-.fileLink:hover { color: var(--primary-hover); }
+.attachment a.fileCard:hover { border-color: var(--primary); background: #1a2035; }
+.audioPlayer { display: grid; grid-template-columns: 42px minmax(0, 1fr); align-items: center; gap: 11px; width: 100%; max-width: 460px; min-width: 0; padding: 12px; border: 1px solid #7c83ff40; border-radius: 12px; background: #11152280; }
+.audioElement { display: none; }
+.audioButton { display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; color: #fff; background: var(--primary); }
+.audioButton:hover { background: var(--primary-hover); color: #101321; }
+.audioContent { min-width: 0; }
+.audioTitle { display: block; font-size: .87rem; line-height: 1.35; overflow-wrap: anywhere; }
+.audioTimeline { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; row-gap: 2px; margin-top: 7px; }
+.audioSeek { width: 100%; min-width: 60px; height: 18px; flex: 1 1 90px; padding: 0; accent-color: var(--primary); cursor: pointer; }
+.audioSeek:disabled { cursor: default; opacity: .5; }
+.audioTime { flex-shrink: 0; color: var(--muted); font-size: .7rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.audioStatus { display: block; color: var(--muted); font-size: .73rem; line-height: 1.4; overflow-wrap: anywhere; }
+.audioStatus:empty { display: none; }
+.audioSpinner { animation: audioSpin 1s linear infinite; }
+@keyframes audioSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .audioSpinner { animation: none; } }
 .message time { display: block; color: var(--muted); font-size: .7rem; margin-top: 7px; }
 .empty { padding: 38px 18px; text-align: center; color: var(--muted); }
 .empty svg { margin: 0 auto 14px; color: var(--primary); }
@@ -45,4 +67,6 @@
   .heading h1 { font-size: 1.5rem; }
   .heading p { font-size: .84rem; }
   .thread { padding: 18px; }
+  .fileCard { flex-wrap: wrap; }
+  .fileOpen { margin-left: 34px; }
 }

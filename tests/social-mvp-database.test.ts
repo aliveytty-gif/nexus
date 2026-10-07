@@ -7,6 +7,7 @@ const ALICE = "11111111-1111-4111-8111-111111111111";
 const BOB = "22222222-2222-4222-8222-222222222222";
 const EVE = "33333333-3333-4333-8333-333333333333";
 const FILE = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa-notes.txt";
+type Attachment = { path: string; name: string; type: string; size: number };
 
 describe("Social MVP PostgreSQL permissions", { concurrency: false }, () => {
   let db: PGlite;
@@ -29,10 +30,23 @@ describe("Social MVP PostgreSQL permissions", { concurrency: false }, () => {
     return (await db.query<{ id: string }>(sql, params)).rows[0].id;
   }
 
-  async function upload(name: string, mime = "text/plain", size = 12) {
-    return db.query("insert into storage.objects (bucket_id, name, metadata) values ('message-files', $1, $2)",
-      [name, { mimetype: mime, size }]);
+  async function upload(name: string, mime = "text/plain", size = 12, bucket = "message-files") {
+    return db.query("insert into storage.objects (bucket_id, name, metadata) values ($1, $2, $3)",
+      [bucket, name, { mimetype: mime, size }]);
   }
+
+  const media = (name: string, type: string, bucket = "message-files", owner = ALICE): Attachment => ({
+    path: `${bucket === "message-files" ? `${conversation}/` : ""}${owner}/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb-${name}`,
+    name, type, size: 12,
+  });
+
+  const sendMedia = (attachments: unknown, sender = ALICE, body = "") => db.query<{ id: string; attachments: Attachment[] }>(
+    "insert into public.messages (conversation_id, sender_id, body, attachments) values ($1, $2, $3, $4) returning id, attachments",
+    [conversation, sender, body, JSON.stringify(attachments)]);
+
+  const publishMedia = (attachments: unknown, author = ALICE, community: string | null = null, content = "") => db.query<{ id: string; attachments: Attachment[] }>(
+    "insert into public.posts (author_id, content, community_id, attachments) values ($1, $2, $3, $4) returning id, attachments",
+    [author, content, community, JSON.stringify(attachments)]);
 
   async function attach(options: {
     name?: string; mime?: string; size?: number; filePath?: string; sender?: string; conversationId?: string; body?: string;
@@ -91,7 +105,11 @@ describe("Social MVP PostgreSQL permissions", { concurrency: false }, () => {
     await asUser(ALICE, async () => {
       group = await scalar("select public.create_community('Group', '', 'group', null) as id", []);
       channel = await scalar("select public.create_community('Channel', '', 'channel', null) as id", []);
+      const legacyPath = path().replace("notes.txt", "legacy.txt");
+      await upload(legacyPath);
+      await attach({ filePath: legacyPath, name: "legacy.txt" });
     });
+    await db.exec(await readFile(new URL("../supabase/migrations/202610070001_media_attachments.sql", import.meta.url), "utf8"));
   });
 
   after(async () => { await db?.close(); });
@@ -105,10 +123,18 @@ describe("Social MVP PostgreSQL permissions", { concurrency: false }, () => {
     assert.deepEqual(bucket.allowed_mime_types, ["image/jpeg", "image/png", "image/webp", "application/pdf", "text/plain",
       "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "application/zip", "application/x-zip-compressed", "audio/mpeg", "audio/mp3", "audio/mp4", "audio/x-m4a",
-      "audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave"]);
+      "audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave", "video/mp4", "video/webm"]);
+    const postBucket = (await db.query<{ public: boolean; file_size_limit: number; allowed_mime_types: string[] }>(
+      "select * from storage.buckets where id = 'post-files'",
+    )).rows[0];
+    assert.equal(postBucket.public, false);
+    assert.equal(Number(postBucket.file_size_limit), 10 * 1024 * 1024);
+    assert.deepEqual(postBucket.allowed_mime_types, bucket.allowed_mime_types);
     await asUser(ALICE, async () => {
       assert.equal((await db.query("select * from public.posts where community_id is null")).rows.length, 1);
       assert.equal((await db.query("select * from public.messages where attachment_path is null")).rows.length, 1);
+      assert.deepEqual((await db.query<{ attachments: unknown }>("select attachments from public.posts where id = $1", [post])).rows[0].attachments, []);
+      assert.deepEqual((await db.query<{ attachments: unknown }>("select attachments from public.messages where attachment_name = 'legacy.txt'")).rows[0].attachments, []);
       await db.query("update public.posts set content = 'Updated existing post' where id = $1", [post]);
       for (const body of ["", " \n\t", "x".repeat(5001)]) {
         await assert.rejects(() => db.query("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, $3)",
@@ -159,6 +185,151 @@ describe("Social MVP PostgreSQL permissions", { concurrency: false }, () => {
       await upload(badMetadataPath, "text/plain", 0);
       await assert.rejects(() => attach({ filePath: badMetadataPath, size: 0 }), { code: "23514" });
       assert.equal((await db.query("delete from storage.objects where name = $1 returning id", [badMetadataPath])).rows.length, 1);
+    });
+  });
+
+  it("stores photo, audio and video together, lets B read them and denies C", async () => {
+    const attachments = [media("photo.jpg", "image/jpeg"), media("voice.mp3", "audio/mpeg"), media("clip.mp4", "video/mp4")];
+    let message: string;
+    await asUser(ALICE, async () => {
+      for (const file of attachments) await upload(file.path, file.type, file.size);
+      const inserted = (await sendMedia(attachments)).rows[0] as { id: string; attachments: Attachment[] };
+      message = inserted.id;
+      assert.deepEqual(inserted.attachments, attachments);
+      await assert.rejects(() => sendMedia(attachments, BOB), { code: "42501" });
+    });
+    await asUser(BOB, async () => {
+      assert.deepEqual((await db.query<{ attachments: Attachment[] }>(
+        "select attachments from public.messages where id = $1", [message])).rows[0].attachments, attachments);
+      assert.equal((await db.query("select name from storage.objects where bucket_id = 'message-files' and name = any($1::text[])",
+        [attachments.map((file) => file.path)])).rows.length, 3);
+      assert.equal((await db.query("delete from storage.objects where name = any($1::text[]) returning id",
+        [attachments.map((file) => file.path)])).rows.length, 0);
+      await assert.rejects(() => sendMedia(attachments, BOB), { code: "42501" });
+    });
+    await asUser(EVE, async () => {
+      assert.equal((await db.query("select id from public.messages where id = $1", [message])).rows.length, 0);
+      assert.equal((await db.query("select id from storage.objects where name = any($1::text[])",
+        [attachments.map((file) => file.path)])).rows.length, 0);
+      await assert.rejects(() => sendMedia(attachments, EVE), { code: "42501" });
+    });
+  });
+
+  it("rejects malformed arrays, duplicate paths, unsafe names and fabricated MIME or size", async () => {
+    const file = media("valid.txt", "text/plain");
+    await asUser(ALICE, async () => {
+      await upload(file.path);
+      for (const malformed of [null, {}, "[]", 12, [null], [[]], [{}],
+        [{ ...file, path: 12 }], [{ ...file, name: false }], [{ ...file, type: null }],
+        [{ ...file, size: "12" }], [{ ...file, size: 1.5 }], [{ ...file, size: 0 }], [{ ...file, size: -1 }],
+        [{ ...file, size: 10485761 }], [{ ...file, extra: true }], [file, file], Array(11).fill(file),
+        [{ ...file, name: "../valid.txt" }], [{ ...file, name: "bad\\valid.txt" }], [{ ...file, name: "bad\nvalid.txt" }],
+        [{ ...file, name: " " }], [{ ...file, name: "x".repeat(256) }], [{ ...file, name: "fake.pdf" }],
+        [{ ...file, type: "application/pdf" }], [{ ...file, size: 11 }]]) {
+        await assert.rejects(() => sendMedia(malformed), { code: "23514" });
+      }
+      for (const forged of [file.path.replace(ALICE, BOB), file.path.replace(conversation, otherConversation),
+        `${conversation}/${ALICE}/../valid.txt`, `${conversation}/${ALICE}/valid.txt`, file.path.replace(".txt", ".html")]) {
+        await assert.rejects(() => sendMedia([{ ...file, path: forged }]), { code: "42501" });
+      }
+      await assert.rejects(() => sendMedia([media("missing.txt", "text/plain")]), { code: "23514" });
+      for (const [name, mime, size] of [["mime.txt", "application/pdf", 12], ["size.txt", "text/plain", 11]] as const) {
+        const bad = media(name, "text/plain");
+        await upload(bad.path, mime, size);
+        await assert.rejects(() => sendMedia([bad]), { code: "23514" });
+      }
+      const invalidMetadata = media("metadata.txt", "text/plain");
+      await db.query("insert into storage.objects (bucket_id, name, metadata) values ('message-files', $1, $2)",
+        [invalidMetadata.path, { mimetype: "text/plain", size: "not-a-size" }]);
+      await assert.rejects(() => sendMedia([invalidMetadata]), { code: "23514" });
+      await assert.rejects(() => sendMedia([file], ALICE, "x".repeat(5001)), { code: "23514" });
+      for (const content of ["", " \n\t"]) {
+        await assert.rejects(() => publishMedia([], ALICE, null, content), { code: "23514" });
+      }
+      const ten = Array.from({ length: 10 }, (_, index) => media(`batch${index}.txt`, "text/plain"));
+      for (const attachment of ten) await upload(attachment.path);
+      assert.deepEqual((await sendMedia(ten)).rows[0].attachments, ten);
+    });
+  });
+
+  it("keeps post drafts private, shares published files through post RLS and limits deletion to the author", async () => {
+    const attachments = [media("post.jpg", "image/jpeg", "post-files"), media("post.mp3", "audio/mpeg", "post-files"),
+      media("post.webm", "video/webm", "post-files")];
+    let mediaPost: string;
+    await asUser(ALICE, async () => {
+      for (const file of attachments) await upload(file.path, file.type, file.size, "post-files");
+      assert.equal((await db.query("select id from storage.objects where name = any($1::text[])",
+        [attachments.map((file) => file.path)])).rows.length, 3);
+      for (const unsafe of [attachments[0].path.replace(ALICE, BOB), `${ALICE}/../post.jpg`,
+        attachments[0].path.replace(".jpg", ".html")]) {
+        await assert.rejects(() => upload(unsafe, "image/jpeg", 12, "post-files"), { code: "42501" });
+      }
+      await assert.rejects(() => publishMedia([{ ...attachments[0], type: "image/png" }]), { code: "23514" });
+      await assert.rejects(() => publishMedia([{ ...attachments[0], size: 11 }]), { code: "23514" });
+      await assert.rejects(() => publishMedia([media("absent.jpg", "image/jpeg", "post-files")]), { code: "23514" });
+      await assert.rejects(() => publishMedia(attachments, ALICE, null, "x".repeat(5001)), { code: "23514" });
+    });
+    for (const viewer of [BOB, EVE]) await asUser(viewer, async () => {
+      assert.equal((await db.query("select id from storage.objects where name = any($1::text[])",
+        [attachments.map((file) => file.path)])).rows.length, 0);
+      await assert.rejects(() => publishMedia(attachments, viewer), { code: "42501" });
+    });
+    await asUser(ALICE, async () => {
+      mediaPost = (await publishMedia(attachments)).rows[0].id as string;
+      await db.query("update public.posts set content = 'Photo, audio and video' where id = $1", [mediaPost]);
+    });
+    for (const viewer of [BOB, EVE]) await asUser(viewer, async () => {
+      assert.deepEqual((await db.query<{ attachments: Attachment[] }>("select attachments from public.posts where id = $1",
+        [mediaPost])).rows[0].attachments, attachments);
+      assert.equal((await db.query("select id from storage.objects where name = any($1::text[])",
+        [attachments.map((file) => file.path)])).rows.length, 3);
+      assert.equal((await db.query("delete from storage.objects where name = any($1::text[]) returning id",
+        [attachments.map((file) => file.path)])).rows.length, 0);
+      assert.equal((await db.query("update public.posts set attachments = '[]' where id = $1 returning id", [mediaPost])).rows.length, 0);
+    });
+    // A restrictive policy proves Storage follows posts RLS instead of bypassing it via a definer helper.
+    await db.exec(`create policy test_media_visibility on public.posts as restrictive for select to authenticated
+      using (author_id <> '${ALICE}'::uuid or (select auth.uid()) <> '${EVE}'::uuid)`);
+    try {
+      await asUser(EVE, async () => {
+        assert.equal((await db.query("select id from public.posts where id = $1", [mediaPost])).rows.length, 0);
+        assert.equal((await db.query("select id from storage.objects where name = any($1::text[])",
+          [attachments.map((file) => file.path)])).rows.length, 0);
+      });
+    } finally { await db.exec("drop policy test_media_visibility on public.posts"); }
+    await asUser(ALICE, async () => {
+      assert.equal((await db.query("update storage.objects set name = name where bucket_id = 'post-files' returning id")).rows.length, 0);
+      assert.equal((await db.query("delete from storage.objects where name = any($1::text[]) returning id",
+        [attachments.map((file) => file.path)])).rows.length, 3);
+      await db.query("update public.posts set content = 'Owner can still edit text', attachments = attachments where id = $1", [mediaPost]);
+      await db.query("update public.posts set attachments = '[]' where id = $1", [mediaPost]);
+    });
+  });
+
+  it("enforces community permissions for media posts and lets owners clean failed drafts", async () => {
+    let mediaChannel: string;
+    await asUser(ALICE, async () => {
+      mediaChannel = await scalar("select public.create_community('Media channel', '', 'channel', null) as id", []);
+    });
+    const draft = media("draft.mp4", "video/mp4", "post-files", BOB);
+    await asUser(BOB, async () => {
+      await upload(draft.path, draft.type, draft.size, "post-files");
+      await db.query("insert into public.community_members (community_id, user_id) values ($1, $2)", [mediaChannel, BOB]);
+      await assert.rejects(() => publishMedia([draft], BOB, mediaChannel), { code: "42501" });
+      await assert.rejects(() => publishMedia([draft], ALICE), { code: "42501" });
+      assert.equal((await db.query("delete from storage.objects where bucket_id = 'post-files' and name = $1 returning id",
+        [draft.path])).rows.length, 1);
+    });
+    const outsider = media("outsider.txt", "text/plain", "post-files", EVE);
+    await asUser(EVE, async () => {
+      await upload(outsider.path, outsider.type, outsider.size, "post-files");
+      await assert.rejects(() => publishMedia([outsider], EVE, group), { code: "42501" });
+      assert.equal((await db.query("delete from storage.objects where name = $1 returning id", [outsider.path])).rows.length, 1);
+    });
+    const owned = media("channel.txt", "text/plain", "post-files");
+    await asUser(ALICE, async () => {
+      await upload(owned.path, owned.type, owned.size, "post-files");
+      assert.deepEqual((await publishMedia([owned], ALICE, mediaChannel)).rows[0].attachments, [owned]);
     });
   });
 
@@ -403,10 +574,11 @@ describe("Social MVP PostgreSQL permissions", { concurrency: false }, () => {
 
   it("denies anonymous access to social data and private files", async () => {
     await asUser(null, async () => {
-      for (const table of ["messages", "post_likes", "communities", "community_members", "friendships", "audio_tracks", "playlists", "playlist_tracks"]) {
+      for (const table of ["posts", "messages", "post_likes", "communities", "community_members", "friendships", "audio_tracks", "playlists", "playlist_tracks"]) {
         await assert.rejects(() => db.query(`select * from public.${table}`), { code: "42501" });
       }
-      assert.equal((await db.query("select * from storage.objects where bucket_id in ('message-files', 'audio')")).rows.length, 0);
+      assert.equal((await db.query("select * from storage.objects where bucket_id in ('message-files', 'post-files', 'audio')")).rows.length, 0);
+      await assert.rejects(() => upload(`${ALICE}/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb-anon.txt`, "text/plain", 12, "post-files"), { code: "42501" });
       await assert.rejects(() => scalar("select public.create_community('Anon', '', 'group', null) as id", []), { code: "42501" });
     }, "anon");
   });
