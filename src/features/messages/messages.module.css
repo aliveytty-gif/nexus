@@ -6,7 +6,7 @@
 .list h2 { padding: 12px; font-size: 1rem; }
 .conversation { display: flex; gap: 10px; padding: 14px 12px; border-radius: 10px; }
 .conversation:hover, .active { background: #252942; }
-.summary { min-width: 0; }
+.summary { min-width: 0; flex: 1; }
 .summary strong, .summary p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .summary strong { display: block; font-size: .92rem; }
 .summary p { margin-top: 4px; font-size: .82rem; color: var(--muted); }
@@ -70,3 +70,39 @@
   .fileCard { flex-wrap: wrap; }
   .fileOpen { margin-left: 34px; }
 }
+
+.groupSettings { margin-top: 16px; border: 1px solid var(--border); border-radius: 10px; }
+.groupSettings > summary { padding: 13px 14px; cursor: pointer; font-size: .88rem; overflow-wrap: anywhere; }
+.groupSettingsBody { display: grid; gap: 24px; padding: 4px 14px 16px; min-width: 0; }
+.groupSection, .groupSearch { display: grid; gap: 10px; min-width: 0; }
+.groupSection h3 { font-size: .95rem; }
+.groupPeople { display: grid; gap: 12px; list-style: none; padding: 0; margin: 0; min-width: 0; }
+.groupPerson { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.groupPerson > :global(.avatar) { flex-shrink: 0; }
+.groupPersonName { display: grid; gap: 3px; min-width: 90px; flex: 1 1 100px; overflow-wrap: anywhere; }
+.groupPersonName strong { font-size: .87rem; }
+.groupSelect { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+.groupSelect input { width: 18px; height: 18px; accent-color: var(--primary); }
+.groupSelected { display: grid; gap: 8px; }
+.groupSelected ul { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 0; }
+.groupSelected li { display: inline-flex; align-items: center; gap: 8px; padding: 7px 9px; max-width: 100%; border: 1px solid var(--border); border-radius: 8px; background: #252942; font-size: .82rem; overflow-wrap: anywhere; }
+.groupSelected li button { display: grid; place-items: center; padding: 3px; border: 0; color: var(--foreground); background: transparent; flex-shrink: 0; }
+.groupActions { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 7px; min-width: 0; }
+.groupMemberAction { display: grid; gap: 6px; min-width: 0; }
+.groupMemberAction :global(.button) { min-height: 34px; padding: 7px 10px; font-size: .75rem; white-space: normal; }
+.groupPhoto { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.groupPhoto > img { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; flex-shrink: 0; }
+.groupPhotoControls { display: grid; gap: 8px; min-width: 0; }
+.groupPhotoControls progress { width: 100%; accent-color: var(--primary); }
+.groupLeave { display: grid; gap: 12px; padding-top: 16px; border-top: 1px solid var(--border); }
+@media (max-width: 600px) {
+  .groupPerson > .groupActions { flex-basis: 100%; padding-left: 46px; }
+  .groupSettingsBody { padding-inline: 10px; }
+  .groupPhoto { flex-wrap: wrap; }
+  .groupPhotoControls { flex: 1 1 170px; }
+}
+
+.conversationMeta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; font-size: .68rem; color: var(--muted); }
+.unreadBadge { display: inline-flex; align-items: center; justify-content: center; min-width: 21px; height: 21px; padding: 0 5px; border-radius: 20px; background: var(--primary); color: #fff; font-size: .7rem; font-weight: 700; }
+.messageAuthor { display: block; margin-bottom: 5px; font-size: .74rem; font-weight: 600; color: var(--primary-hover); }
+.consecutive { margin-top: -11px; }

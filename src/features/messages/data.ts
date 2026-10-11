@@ -3,23 +3,41 @@ import "server-only";
 import { parseAttachments } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 
-export async function getConversations(userId: string) {
+export async function getConversations() {
   const supabase = await createClient();
-  // RLS returns only conversations belonging to the authenticated session.
-  const { data, error } = await supabase
-    .from("conversations")
-    .select("id, created_at, members:conversation_members(user_id, profile:profiles(id, username, first_name, last_name, avatar_url)), messages(body, attachment_name, attachments, created_at)")
-    .order("created_at", { referencedTable: "messages", ascending: false })
-    .limit(1, { referencedTable: "messages" });
+  // The RPC is scoped to auth.uid() and returns one summary, not the whole group roster.
+  const { data, error } = await supabase.rpc("get_conversation_summaries");
   if (error) throw new Error("Не удалось загрузить диалоги.");
+  const paths = [...new Set(data.flatMap((conversation) => conversation.avatar_path ? [conversation.avatar_path] : []))];
+  const signed = paths.length ? await supabase.storage.from("message-files").createSignedUrls(paths, 600) : null;
+  const urls = new Map(signed?.data?.map((file) => [file.path, file.signedUrl]));
   return data.map((conversation) => ({
-    id: conversation.id,
-    participant: conversation.members.find((member) => member.user_id !== userId)?.profile ?? null,
-    latest: conversation.messages[0] ? { ...conversation.messages[0],
-      attachment_name: parseAttachments(conversation.messages[0].attachments).map((file) => file.name).join(", ") || conversation.messages[0].attachment_name,
+    id: conversation.id, kind: conversation.kind, title: conversation.title,
+    avatarPath: conversation.avatar_path, avatarUrl: conversation.avatar_path ? urls.get(conversation.avatar_path) ?? null : null,
+    myRole: conversation.role, unread: conversation.unread,
+    participant: conversation.other_id ? {
+      id: conversation.other_id, username: conversation.other_username ?? "",
+      first_name: conversation.other_first_name ?? "", last_name: conversation.other_last_name ?? "",
+      avatar_url: conversation.other_avatar_url,
     } : null,
-    updatedAt: conversation.messages[0]?.created_at ?? conversation.created_at,
-  })).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    latest: conversation.last_message_id ? {
+      id: conversation.last_message_id, body: conversation.last_body,
+      attachment_name: conversation.last_attachment_name, created_at: conversation.last_message_at,
+      sender_id: conversation.last_sender_id,
+    } : null,
+    updatedAt: conversation.last_message_at ?? conversation.created_at,
+  }));
+}
+
+export async function getConversationMembers(conversationId: string, page: number) {
+  const supabase = await createClient();
+  const pageSize = 30;
+  const { data, error, count } = await supabase.from("conversation_members")
+    .select("user_id, role, profile:profiles(id, username, first_name, last_name, avatar_url)", { count: "exact" })
+    .eq("conversation_id", conversationId).order("joined_at").order("user_id")
+    .range((page - 1) * pageSize, page * pageSize - 1);
+  if (error) throw new Error("Не удалось загрузить участников.");
+  return { members: data, totalMembers: count ?? 0, hasMoreMembers: (count ?? 0) > page * pageSize };
 }
 
 export async function getConversationMessages(conversationId: string, page: number) {
@@ -28,7 +46,7 @@ export async function getConversationMessages(conversationId: string, page: numb
   const start = (page - 1) * pageSize;
   const { data, error } = await supabase
     .from("messages")
-    .select("id, sender_id, body, created_at, attachment_path, attachment_name, attachment_type, attachment_size, attachments")
+    .select("id, sender_id, body, created_at, attachment_path, attachment_name, attachment_type, attachment_size, attachments, sender:profiles(id, username, first_name, last_name, avatar_url)")
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })

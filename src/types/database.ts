@@ -256,15 +256,15 @@ export type Database = {
         ];
       };
       conversations: {
-        Row: { id: string; direct_key: string; created_at: string };
-        Insert: { id?: string; direct_key: string; created_at?: string };
-        Update: { id?: string; direct_key?: string; created_at?: string };
+        Row: { id: string; direct_key: string | null; kind: "direct" | "group"; title: string | null; avatar_path: string | null; created_at: string };
+        Insert: { id?: string; direct_key?: string | null; kind?: "direct" | "group"; title?: string | null; avatar_path?: string | null; created_at?: string };
+        Update: { id?: string; direct_key?: string | null; kind?: "direct" | "group"; title?: string | null; avatar_path?: string | null; created_at?: string };
         Relationships: [];
       };
       conversation_members: {
-        Row: { conversation_id: string; user_id: string };
-        Insert: { conversation_id: string; user_id: string };
-        Update: { conversation_id?: string; user_id?: string };
+        Row: { conversation_id: string; user_id: string; role: "creator" | "admin" | "member"; joined_at: string; last_read_at: string };
+        Insert: { conversation_id: string; user_id: string; role?: "creator" | "admin" | "member"; joined_at?: string; last_read_at?: string };
+        Update: { conversation_id?: string; user_id?: string; role?: "creator" | "admin" | "member"; joined_at?: string; last_read_at?: string };
         Relationships: [
           {
             foreignKeyName: "conversation_members_conversation_id_fkey";
@@ -408,6 +408,37 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
+      create_group_conversation: {
+        Args: { p_title: string; p_member_ids: string[] };
+        Returns: string;
+      };
+      update_group_conversation: {
+        Args: { p_conversation_id: string; p_title: string; p_avatar_path: string | null };
+        Returns: undefined;
+      };
+      manage_group_member: {
+        Args: { p_conversation_id: string; p_user_id: string; p_action: "add" | "remove" | "promote" | "demote" };
+        Returns: undefined;
+      };
+      leave_group_conversation: {
+        Args: { p_conversation_id: string };
+        Returns: undefined;
+      };
+      mark_conversation_read: {
+        Args: { p_conversation_id: string; p_message_id: string };
+        Returns: undefined;
+      };
+      get_conversation_summaries: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          id: string; kind: "direct" | "group"; title: string | null; avatar_path: string | null;
+          created_at: string; role: "creator" | "admin" | "member"; last_read_at: string;
+          other_id: string | null; other_username: string | null; other_first_name: string | null;
+          other_last_name: string | null; other_avatar_url: string | null;
+          last_message_id: string | null; last_body: string | null; last_attachment_name: string | null;
+          last_message_at: string | null; last_sender_id: string | null; unread: boolean;
+        }[];
+      };
       create_community: {
         Args: { p_name: string; p_description: string; p_type: "group" | "channel"; p_avatar_url: string | null };
         Returns: string;
