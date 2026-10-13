@@ -787,6 +787,7 @@ textarea.input {
 }
 .post-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
@@ -816,6 +817,23 @@ textarea.input {
 }
 .like-button[aria-pressed="true"] { color: var(--primary); }
 .like-button:disabled { opacity: .5; cursor: wait; }
+.repost-label,
+.repost-source-link { display: inline-flex; align-items: center; gap: 5px; }
+.repost-original { margin: 16px 0; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: #0b0d16; min-width: 0; }
+.repost-original .post-header > div { min-width: 0; overflow-wrap: anywhere; }
+.repost-original .post-body { margin: 12px 0; }
+.repost-source-link { margin-top: 10px; font-size: .8rem; color: var(--primary); }
+.repost-source-link:hover { color: var(--primary-hover); }
+.repost-control { display: contents; }
+.repost-button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 0; border: 0; background: transparent; color: var(--muted); font-size: .83rem; cursor: pointer; }
+.repost-button:hover,
+.repost-button[aria-expanded="true"] { color: var(--primary); }
+.repost-button:disabled { opacity: .5; cursor: default; }
+.post-footer .repost-existing { color: var(--primary); }
+.repost-form { flex: 0 0 100%; order: 1; display: grid; gap: 10px; padding-top: 8px; min-width: 0; }
+.repost-form textarea.input { min-height: 85px; }
+.repost-form .error-text { margin: 0; }
+.repost-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .section-label {
   display: flex;
   justify-content: space-between;
