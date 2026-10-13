@@ -13,6 +13,32 @@ import {
 } from "@/lib/storage";
 
 export type PostFormState = { error?: string; content?: string };
+export type RepostFormState = { error?: string; comment?: string };
+
+export async function createRepostAction(
+  postId: string,
+  _previous: RepostFormState,
+  formData: FormData,
+): Promise<RepostFormState> {
+  await requireUser();
+  const raw = formData.get("comment");
+  const comment = typeof raw === "string" ? raw.trim() : "";
+  if (!UUID_PATTERN.test(postId)) return { comment, error: "Публикация недоступна." };
+  if ((raw !== null && typeof raw !== "string") || comment.length > POST_LIMIT)
+    return { comment, error: `Комментарий — до ${POST_LIMIT} символов.` };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_repost", {
+    p_original_post_id: postId, p_comment: comment,
+  });
+  if (error || !data)
+    return { comment, error: "Не удалось сделать репост. Оригинал мог стать недоступен. Обновите страницу и повторите." };
+  revalidatePath("/feed");
+  revalidatePath("/posts/[id]", "page");
+  revalidatePath("/profile/[username]", "page");
+  revalidatePath("/communities", "layout");
+  redirect(`/posts/${data}`);
+}
+
 export async function createPostAction(
   _previous: PostFormState,
   formData: FormData,

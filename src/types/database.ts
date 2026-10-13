@@ -1,4 +1,4 @@
-// Schema contract through 202610070001_media_attachments.sql.
+// Schema contract through 202610130001_reposts.sql.
 // Regenerate from your Supabase project after changing migrations (see README).
 export type Json =
   | string
@@ -88,6 +88,8 @@ export type Database = {
           image_url: string | null;
           attachments: Json;
           community_id: string | null;
+          is_repost: boolean;
+          original_post_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -98,6 +100,8 @@ export type Database = {
           image_url?: string | null;
           attachments?: Json;
           community_id?: string | null;
+          is_repost?: boolean;
+          original_post_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -124,6 +128,13 @@ export type Database = {
             columns: ["community_id"];
             isOneToOne: false;
             referencedRelation: "communities";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "posts_original_post_id_fkey";
+            columns: ["original_post_id"];
+            isOneToOne: false;
+            referencedRelation: "posts";
             referencedColumns: ["id"];
           },
         ];
@@ -408,6 +419,14 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
+      create_repost: {
+        Args: { p_original_post_id: string; p_comment?: string };
+        Returns: string;
+      };
+      get_repost_summaries: {
+        Args: { p_post_ids: string[] };
+        Returns: { post_id: string; repost_count: number; my_repost_id: string | null }[];
+      };
       create_group_conversation: {
         Args: { p_title: string; p_member_ids: string[] };
         Returns: string;
