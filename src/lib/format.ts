@@ -18,6 +18,12 @@ export function formatDate(value: string) {
     timeZone: "Europe/Moscow",
   }).format(new Date(value));
 }
+export function formatJoined(value: string) {
+  const parts = new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
+  }).formatToParts(new Date(value));
+  return `${parts.find((part) => part.type === "month")!.value} ${parts.find((part) => part.type === "year")!.value} г.`;
+}
 export function pageNumber(value: string | string[] | undefined): number {
   const raw = Array.isArray(value) ? value[0] : value;
   const n = Number(raw);
