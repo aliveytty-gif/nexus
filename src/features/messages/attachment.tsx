@@ -26,7 +26,6 @@ function ImageAttachment({ name, url }: { name: string; url: string }) {
       </button>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={url} alt={name} loading="lazy" referrerPolicy="no-referrer" />
-      <p>{name}</p>
     </dialog>
   </>;
 }
@@ -49,10 +48,6 @@ export function MessageAttachment({ name, type, size, url, downloadUrl }: {
     {url && video && <video className={styles.mediaVideo} controls controlsList="nodownload" preload="metadata" src={url} aria-label={`Видео: ${name}`}>
       Ваш браузер не поддерживает воспроизведение видео.
     </video>}
-    {url && media && <div className={styles.mediaCaption}>
-      {!audio && <strong>{name}</strong>}
-      <p className="muted small">{description}</p>
-    </div>}
     {!media && fileUrl && <a href={fileUrl} className={styles.fileCard} target="_blank" rel="noopener noreferrer" aria-label={`Открыть файл: ${name}`}>
       <FileIcon size={24} aria-hidden="true" />
       <div><strong>{name}</strong><p className="muted small">{description}</p></div>

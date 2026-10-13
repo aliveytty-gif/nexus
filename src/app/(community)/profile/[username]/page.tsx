@@ -10,7 +10,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
-import { displayName } from "@/lib/format";
+import { displayName, formatJoined } from "@/lib/format";
 import { getProfileByUsername } from "@/features/profiles/data";
 import { Avatar } from "@/components/ui/avatar";
 import { Notice } from "@/components/ui/notice";
@@ -36,11 +36,7 @@ export default async function ProfilePage({
     .find((row) => row.requester_id === profile.id || row.addressee_id === profile.id);
   const query = await searchParams;
   const name = displayName(profile);
-  const joined = new Intl.DateTimeFormat("ru-RU", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(profile.created_at));
+  const joined = formatJoined(profile.created_at);
   return (
     <div className="profile-page">
       <Link href="/feed" className="back-link">
@@ -100,8 +96,8 @@ export default async function ProfilePage({
               </span>
             )}
             <span>
-              <CalendarDays size={17} aria-hidden="true" />В NEXUS с{" "}
-              <time dateTime={profile.created_at}>{joined}</time>
+              <CalendarDays size={17} aria-hidden="true" />
+              <time dateTime={profile.created_at}>В NEXUS с {joined}</time>
             </span>
           </div>
           <section

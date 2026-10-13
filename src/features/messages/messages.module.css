@@ -21,15 +21,13 @@
 .mine { align-self: flex-end; background: #33335c; }
 .message p { white-space: pre-wrap; }
 .attachment { display: grid; gap: 10px; margin-top: 8px; min-width: 0; max-width: 460px; }
-.mediaImage { display: block; max-width: 100%; max-height: 380px; object-fit: contain; border-radius: 10px; }
+.mediaImage { display: block; max-width: 100%; max-height: 320px; object-fit: contain; border-radius: 10px; }
 .imagePreview { display: block; width: fit-content; max-width: 100%; cursor: zoom-in; }
 .imageDialog { position: fixed; inset: 0; margin: auto; max-width: min(1000px, 94vw); max-height: 94dvh; padding: 48px 16px 16px; border: 1px solid var(--border); border-radius: 14px; background: #111522; color: var(--foreground); }
 .imageDialog::backdrop { background: #050711d9; }
 .imageDialog img { display: block; max-width: 100%; max-height: calc(94dvh - 110px); object-fit: contain; margin: 0 auto; }
-.imageDialog p { margin-top: 10px; overflow-wrap: anywhere; font-size: .85rem; }
 .imageClose { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 8px; background: #252b40; color: var(--foreground); }
-.mediaVideo { display: block; width: 100%; max-height: 380px; border-radius: 10px; background: #080b12; }
-.mediaCaption { min-width: 0; overflow-wrap: anywhere; }
+.mediaVideo { display: block; width: 100%; max-height: 320px; border-radius: 10px; background: #080b12; }
 .fileCard { display: flex; gap: 10px; align-items: center; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: #11152265; overflow-wrap: anywhere; }
 .fileCard > svg { flex-shrink: 0; color: var(--primary-hover); }
 .fileCard > div { min-width: 0; flex: 1; }

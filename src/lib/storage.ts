@@ -58,6 +58,99 @@ export function validateImage(file: File): string | null {
   return null;
 }
 
+/** Inspect dimensions before decoding; animated WebP stays intact. */
+function photoDimensions(header: DataView, type: string): [number, number] | null {
+  if (type === "image/png" && header.byteLength >= 24 && header.getUint32(0) === 0x89504e47 &&
+    header.getUint32(4) === 0x0d0a1a0a && header.getUint32(12) === 0x49484452)
+    return [header.getUint32(16), header.getUint32(20)];
+  if (type === "image/webp" && header.byteLength >= 30 && header.getUint32(0) === 0x52494646 &&
+    header.getUint32(8) === 0x57454250) {
+    const chunk = header.getUint32(12);
+    if (chunk === 0x56503858) {
+      if (header.getUint8(20) & 2) return null;
+      const read24 = (offset: number) => header.getUint8(offset) | header.getUint8(offset + 1) << 8 |
+        header.getUint8(offset + 2) << 16;
+      return [read24(24) + 1, read24(27) + 1];
+    }
+    if (chunk === 0x5650384c && header.getUint8(20) === 0x2f) {
+      const dimensions = header.getUint32(21, true);
+      return [(dimensions & 0x3fff) + 1, ((dimensions >>> 14) & 0x3fff) + 1];
+    }
+    if (chunk === 0x56503820 && header.getUint8(23) === 0x9d && header.getUint8(24) === 1 && header.getUint8(25) === 0x2a)
+      return [header.getUint16(26, true) & 0x3fff, header.getUint16(28, true) & 0x3fff];
+  }
+  if (type === "image/jpeg" && header.byteLength >= 4 && header.getUint16(0) === 0xffd8) {
+    let offset = 2;
+    while (offset + 4 <= header.byteLength && header.getUint8(offset) === 0xff) {
+      while (offset < header.byteLength && header.getUint8(offset) === 0xff) offset++;
+      if (offset + 3 > header.byteLength) break;
+      const marker = header.getUint8(offset++);
+      if (marker === 0xda || marker === 0xd9) break;
+      const length = header.getUint16(offset);
+      if (length < 2 || offset + length > header.byteLength) break;
+      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker) && length >= 7)
+        return [header.getUint16(offset + 5), header.getUint16(offset + 3)];
+      offset += length;
+    }
+  }
+  return null;
+}
+
+/** Prepare new photos locally; unsupported browsers and larger encodings retain the original. */
+export async function compressImage(file: File, maxSide = 1600, signal?: AbortSignal): Promise<File> {
+  signal?.throwIfAborted();
+  if (!extensions[file.type] || typeof document === "undefined" || typeof createImageBitmap !== "function" ||
+    file.size > MESSAGE_FILE_MAX_BYTES || !file.size || !Number.isFinite(maxSide) || maxSide < 1) return file;
+  let dimensions: [number, number] | null;
+  try {
+    dimensions = photoDimensions(new DataView(await file.slice(0, 256 * 1024).arrayBuffer()), file.type);
+  } catch {
+    signal?.throwIfAborted();
+    return file;
+  }
+  signal?.throwIfAborted();
+  if (!dimensions || !dimensions[0] || !dimensions[1] || dimensions[0] * dimensions[1] > 40_000_000 ||
+    (file.size <= 256 * 1024 && Math.max(...dimensions) <= maxSide)) return file;
+  let stopped = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let abort: (() => void) | undefined;
+  const work = (async () => {
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement("canvas");
+    try {
+      if (stopped) return file;
+      const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext("2d");
+      if (!context) return file;
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", 0.86));
+      if (stopped || !blob || blob.type !== "image/webp" || !blob.size || blob.size >= file.size) return file;
+      const stem = file.name.replace(/\.[^.]+$/, "").slice(0, 250);
+      return new File([blob], `${stem}.webp`, { type: blob.type, lastModified: file.lastModified });
+    } finally {
+      bitmap.close();
+      canvas.width = canvas.height = 0;
+    }
+  })();
+  const interrupted = new Promise<File>((resolve, reject) => {
+    timer = setTimeout(() => { stopped = true; resolve(file); }, 15_000);
+    abort = () => { stopped = true; reject(signal?.reason ?? new DOMException("Загрузка отменена", "AbortError")); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (signal?.aborted) abort();
+  });
+  try {
+    return await Promise.race([work, interrupted]);
+  } catch {
+    signal?.throwIfAborted();
+    return file;
+  } finally {
+    clearTimeout(timer);
+    if (abort) signal?.removeEventListener("abort", abort);
+  }
+}
+
 export function validateMessageFile(file: Pick<File, "name" | "type" | "size">): string | null {
   const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
   if (!file.name.trim() || file.name.length > 255 || Array.from(file.name).some((character) =>
@@ -107,6 +200,8 @@ export async function uploadAttachment(
 ): Promise<MessageAttachment> {
   const validation = validateMessageFile(file);
   if (validation) throw new Error(validation);
+  options.signal.throwIfAborted();
+  file = await compressImage(file, 1600, options.signal);
   options.signal.throwIfAborted();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) throw new Error("Войдите в аккаунт ещё раз.");
@@ -182,6 +277,7 @@ export async function uploadMessageFile(
 ): Promise<MessageAttachment> {
   const validation = validateMessageFile(file);
   if (validation) throw new Error(validation);
+  file = await compressImage(file);
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) throw new Error("Войдите в аккаунт ещё раз.");
   const extension = file.name.split(".").pop()!.toLowerCase();
@@ -214,6 +310,7 @@ export async function uploadImage(
 ) {
   const validation = validateImage(file);
   if (validation) throw new Error(validation);
+  file = await compressImage(file, bucket === "avatars" ? 1024 : 1600);
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) throw new Error("Войдите в аккаунт ещё раз.");
   const path = `${user.id}/${crypto.randomUUID()}.${extensions[file.type]}`;

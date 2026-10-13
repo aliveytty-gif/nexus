@@ -16,7 +16,7 @@ function PostContent({ post }: { post: Pick<FeedPost, "content" | "image_url" | 
       width={1200} height={800}
       sizes="(max-width: 600px) calc(100vw - 70px), (max-width: 800px) calc(100vw - 270px), (max-width: 1150px) calc(100vw - 340px), 710px"
       unoptimized={!isStorageImage(post.image_url)}
-      style={{ width: "100%", height: "auto", maxHeight: 520, objectFit: "contain", borderRadius: 12 }} />}
+      style={{ width: "100%", height: "auto", maxHeight: 360, objectFit: "contain", borderRadius: 12 }} />}
     {post.mediaAttachments.length > 0 && <div className="post-attachments">
       {post.mediaAttachments.map((attachment) => <MessageAttachment key={attachment.path} {...attachment} />)}
     </div>}

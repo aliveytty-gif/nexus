@@ -132,7 +132,7 @@ export function AttachmentPicker({ scope, conversationId, disabled = false, onCh
             ? <Music2 size={24} aria-hidden="true" /> : <FileText size={24} aria-hidden="true" />}
         <div className="file-selection-info">
           <strong>{item.file.name}</strong>
-          <p className="muted small">{formatAttachmentSize(item.file.size)}</p>
+          <p className="muted small">{formatAttachmentSize(item.attachment?.size ?? item.file.size)}</p>
           {item.status === "uploading" && <><progress max={100} value={item.progress} aria-label={`Загрузка ${item.file.name}`} />
             <span className="muted small" role="status">{item.progress === 100 ? "Сохраняем…" : `Загрузка ${item.progress}%`}</span></>}
           {item.status === "ready" && <span className="muted small" role="status">Готов к отправке</span>}
