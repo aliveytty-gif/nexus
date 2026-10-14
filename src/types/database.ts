@@ -1,4 +1,4 @@
-// Schema contract through 202610130001_reposts.sql.
+// Schema contract through 202610130002_dating.sql.
 // Regenerate from your Supabase project after changing migrations (see README).
 export type Json =
   | string
@@ -11,6 +11,48 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      dating_profiles: {
+        Row: { user_id: string; enabled: boolean; bio: string; age: number | null; photo_paths: string[]; created_at: string; updated_at: string };
+        Insert: { user_id: string; enabled?: boolean; bio?: string; age?: number | null; photo_paths?: string[]; created_at?: string; updated_at?: string };
+        Update: { enabled?: boolean; bio?: string; age?: number | null; photo_paths?: string[] };
+        Relationships: [{ foreignKeyName: "dating_profiles_user_id_fkey"; columns: ["user_id"]; isOneToOne: true; referencedRelation: "profiles"; referencedColumns: ["id"] }];
+      };
+      dating_reactions: {
+        Row: { user_id: string; target_user_id: string; reaction: "liked" | "skipped"; created_at: string };
+        Insert: { user_id: string; target_user_id: string; reaction: "liked" | "skipped"; created_at?: string };
+        Update: { reaction?: "liked" | "skipped" };
+        Relationships: [
+          { foreignKeyName: "dating_reactions_user_id_fkey"; columns: ["user_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "dating_reactions_target_user_id_fkey"; columns: ["target_user_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ];
+      };
+      dating_matches: {
+        Row: { id: string; user_a: string; user_b: string; created_at: string };
+        Insert: { id?: string; user_a: string; user_b: string; created_at?: string };
+        Update: Record<string, never>;
+        Relationships: [
+          { foreignKeyName: "dating_matches_user_a_fkey"; columns: ["user_a"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "dating_matches_user_b_fkey"; columns: ["user_b"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ];
+      };
+      user_blocks: {
+        Row: { blocker_id: string; blocked_id: string; created_at: string };
+        Insert: { blocker_id: string; blocked_id: string; created_at?: string };
+        Update: Record<string, never>;
+        Relationships: [
+          { foreignKeyName: "user_blocks_blocker_id_fkey"; columns: ["blocker_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "user_blocks_blocked_id_fkey"; columns: ["blocked_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ];
+      };
+      dating_reports: {
+        Row: { id: string; reporter_id: string; reported_id: string; reason: string; created_at: string };
+        Insert: { id?: string; reporter_id: string; reported_id: string; reason: string; created_at?: string };
+        Update: Record<string, never>;
+        Relationships: [
+          { foreignKeyName: "dating_reports_reporter_id_fkey"; columns: ["reporter_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "dating_reports_reported_id_fkey"; columns: ["reported_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ];
+      };
       audio_tracks: {
         Row: { id: string; owner_id: string; title: string; artist: string; file_path: string; duration: number | null; created_at: string };
         Insert: { id?: string; owner_id: string; title: string; artist?: string; file_path: string; duration?: number | null; created_at?: string };
@@ -419,6 +461,24 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
+      save_dating_profile: {
+        Args: { p_enabled: boolean; p_bio: string; p_age: number | null; p_photo_paths: string[] };
+        Returns: undefined;
+      };
+      get_dating_candidates: {
+        Args: { p_min_age?: number | null; p_max_age?: number | null; p_course?: number | null; p_specialty?: string | null; p_interest_id?: string | null; p_limit?: number };
+        Returns: { user_id: string; first_name: string; last_name: string; username: string; specialty: string; course: number | null; bio: string; age: number | null; photo_paths: string[]; interests: Json; score: number }[];
+      };
+      react_to_dating_profile: {
+        Args: { p_target_user_id: string; p_reaction: "liked" | "skipped" };
+        Returns: string | null;
+      };
+      set_user_block: { Args: { p_user_id: string; p_blocked: boolean }; Returns: undefined };
+      report_dating_profile: { Args: { p_user_id: string; p_reason: string }; Returns: undefined };
+      is_user_blocked: { Args: { p_user_id: string }; Returns: boolean };
+      get_blocked_user_ids: { Args: Record<PropertyKey, never>; Returns: string[] };
+      can_view_dating_profile: { Args: { p_user_id: string }; Returns: boolean };
+      is_own_dating_photo: { Args: { p_path: string }; Returns: boolean };
       create_repost: {
         Args: { p_original_post_id: string; p_comment?: string };
         Returns: string;

@@ -14,10 +14,16 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   const page = pageNumber(query.page);
   const tab = query.tab === "friends" || query.tab === "requests" ? query.tab : "all";
   const supabase = await createClient();
+  const relationshipsPromise = getFriendships(user.id);
+  const { data: blockedIds, error: blockedError } = await supabase.rpc("get_blocked_user_ids");
+  if (blockedError) throw new Error("Не удалось загрузить настройки приватности.");
+  const blocked = new Set(blockedIds ?? []);
+  let peopleQuery = supabase.from("profiles").select("id, username, first_name, last_name, avatar_url", { count: "exact" })
+    .neq("id", user.id).order("created_at", { ascending: false }).order("id").range((page - 1) * 24, page * 24 - 1);
+  if (blocked.size) peopleQuery = peopleQuery.not("id", "in", `(${[...blocked].join(",")})`);
   const [relationships, profiles] = await Promise.all([
-    getFriendships(user.id),
-    tab === "all" ? supabase.from("profiles").select("id, username, first_name, last_name, avatar_url", { count: "exact" })
-      .neq("id", user.id).order("created_at", { ascending: false }).order("id").range((page - 1) * 24, page * 24 - 1)
+    relationshipsPromise,
+    tab === "all" ? peopleQuery
       : Promise.resolve({ data: [], count: 0, error: null }),
   ]);
   if (profiles.error) throw new Error("Не удалось загрузить участников.");
@@ -27,8 +33,8 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   };
   const people = tab === "all" ? profiles.data ?? [] : relationships
     .filter((r) => tab === "friends" ? r.status === "accepted" : r.status === "pending" && r.addressee_id === user.id)
-    .map((r) => r.requester_id === user.id ? r.addressee : r.requester).filter((p) => p !== null);
-  const incoming = relationships.filter((r) => r.status === "pending" && r.addressee_id === user.id).length;
+    .map((r) => r.requester_id === user.id ? r.addressee : r.requester).filter((p) => p !== null && !blocked.has(p.id));
+  const incoming = relationships.filter((r) => r.status === "pending" && r.addressee_id === user.id && !blocked.has(r.requester_id)).length;
   return <>
     <div className="page-heading"><div><h1>Люди и друзья</h1><p>Находи знакомых и принимай приглашения.</p></div></div>
     <nav className="section-tabs" aria-label="Участники">

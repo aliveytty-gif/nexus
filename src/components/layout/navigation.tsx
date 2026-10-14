@@ -10,6 +10,7 @@ import {
   Users,
   Map,
   Sparkles,
+  Heart,
 } from "lucide-react";
 export function Navigation({ username }: { username: string }) {
   const pathname = usePathname();
@@ -45,6 +46,7 @@ export function Navigation({ username }: { username: string }) {
       active: pathname === "/music",
     },
     { href: "/people", label: "Люди и друзья", icon: Users, active: pathname === "/people" },
+    { href: "/dating", label: "Знакомства", icon: Heart, active: pathname === "/dating" },
     {
       href: "/map",
       label: "Карта",
