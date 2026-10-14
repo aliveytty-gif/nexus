@@ -28,6 +28,10 @@
 .imageDialog img { display: block; max-width: 100%; max-height: calc(94dvh - 110px); object-fit: contain; margin: 0 auto; }
 .imageClose { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 8px; background: #252b40; color: var(--foreground); }
 .mediaVideo { display: block; width: 100%; max-height: 320px; border-radius: 10px; background: #080b12; }
+.postMedia { width: 100%; max-width: none; container-type: inline-size; }
+.postMedia .imagePreview { width: 100%; }
+.postMedia .mediaImage { width: 100%; height: auto; min-height: 52.356cqw; max-height: 125cqw; object-fit: cover; }
+.postMedia .mediaVideo { height: auto; max-height: 125cqw; object-fit: contain; }
 .fileCard { display: flex; gap: 10px; align-items: center; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: #11152265; overflow-wrap: anywhere; }
 .fileCard > svg { flex-shrink: 0; color: var(--primary-hover); }
 .fileCard > div { min-width: 0; flex: 1; }
