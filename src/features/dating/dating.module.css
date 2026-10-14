@@ -1,0 +1,30 @@
+.discovery { width: min(100%, 480px); margin: 0 auto; }
+.card { padding: 0; overflow: hidden; min-width: 0; }
+.hero { position: relative; background: var(--background); }
+.hero > img { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: cover; }
+.placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; aspect-ratio: 4 / 3; color: var(--muted); }
+.cardBody { display: flex; flex-direction: column; gap: 16px; padding: 20px; }
+.cardBody h2 { font-size: 1.35rem; overflow-wrap: anywhere; }
+.bio { white-space: pre-wrap; overflow-wrap: anywhere; }
+.interests { display: flex; flex-wrap: wrap; gap: 6px; }
+.interests > span { background: var(--background); border-radius: 18px; padding: 5px 11px; font-size: .8rem; }
+.reactions { display: flex; flex-wrap: wrap; gap: 10px; }
+.reactions > button { flex: 1; }
+.reactions > div { flex-basis: 100%; }
+.photoNav { position: absolute; bottom: 10px; inset-inline: 10px; display: flex; justify-content: center; gap: 8px; }
+.photoNav button { border: 1px solid #ffffff66; border-radius: 50%; background: #090b17b8; color: #fff; width: 36px; height: 36px; cursor: pointer; }
+.photoNav button[aria-pressed="true"] { background: var(--primary); }
+.safety summary, .filters summary { cursor: pointer; font-size: .85rem; color: var(--muted); }
+.safety[open], .filters[open] { display: flex; flex-direction: column; gap: 16px; }
+.safety[open] > *, .filters[open] > form { margin-top: 14px; }
+.safety textarea { min-height: 82px; }
+.optIn { display: flex; align-items: center; gap: 10px; }
+.optIn input { width: 20px; height: 20px; accent-color: var(--primary); flex-shrink: 0; }
+.photoList { display: flex; overflow-x: auto; gap: 10px; margin-bottom: 12px; }
+.photoItem { display: flex; flex-direction: column; flex: 0 0 120px; }
+.photoItem img { width: 120px; height: 150px; object-fit: cover; border-radius: 8px; }
+.blockRow { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.matches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.matchLabel { display: flex; align-items: center; gap: 8px; color: var(--primary); }
+.photoHelp { margin-top: 20px; }
+@media (max-width: 600px) { .matches { grid-template-columns: 1fr; } .cardBody { padding: 16px; } .photoNav button { width: 40px; height: 40px; } }

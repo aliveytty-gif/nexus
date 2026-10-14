@@ -321,3 +321,22 @@ export async function uploadImage(
   if (error) throw new Error("Фото не загрузилось. Проверьте соединение и повторите попытку.");
   return { path, url: supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl };
 }
+
+/** Dating photos stay private and are uploaded only when explicitly selected. */
+export async function uploadDatingPhoto(supabase: SupabaseClient<Database>, file: File, signal?: AbortSignal) {
+  const validation = validateImage(file);
+  if (validation) throw new Error(validation);
+  file = await compressImage(file, 1600, signal);
+  signal?.throwIfAborted();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error("Войдите в аккаунт ещё раз.");
+  const path = `${user.id}/${crypto.randomUUID()}-photo.${extensions[file.type]}`;
+  const { error } = await supabase.storage.from("dating-photos").upload(path, file, { contentType: file.type, upsert: false });
+  if (error) throw new Error("Фото не загрузилось. Повторите попытку.");
+  if (signal?.aborted) {
+    await supabase.storage.from("dating-photos").remove([path]);
+    signal.throwIfAborted();
+  }
+  const { data } = await supabase.storage.from("dating-photos").createSignedUrl(path, 60);
+  return { path, url: data?.signedUrl ?? null };
+}

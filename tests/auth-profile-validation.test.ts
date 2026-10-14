@@ -22,6 +22,7 @@ describe("auth redirect boundary", () => {
       "/messages",
       "/music",
       "/people",
+      "/dating",
       "/map",
       "/ai",
       "/posts/12345678-1234-1234-1234-123456789abc",

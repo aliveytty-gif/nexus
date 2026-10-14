@@ -98,7 +98,7 @@ export async function startConversationAction(
     p_other_user_id: otherUserId,
   });
   if (error || !data)
-    return { error: "Не удалось открыть диалог. Попробуйте ещё раз." };
+    return { error: error?.message === "User unavailable" ? "Диалог недоступен из-за блокировки пользователя." : "Не удалось открыть диалог. Попробуйте ещё раз." };
   revalidatePath("/messages");
   redirect(`/messages?conversation=${data}`);
 }

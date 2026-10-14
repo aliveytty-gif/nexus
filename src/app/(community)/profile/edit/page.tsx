@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { requireUser } from "@/lib/auth/session";
 import { getInterests, getProfileById } from "@/features/profiles/data";
 import { ProfileForm } from "@/features/profiles/profile-form";
@@ -18,6 +19,7 @@ export default async function EditProfilePage() {
         <p className="eyebrow">ЛИЧНЫЙ КАБИНЕТ</p>
         <h1>Больше о тебе.</h1>
         <p className="muted">Эту информацию увидят другие участники NEXUS.</p>
+        <Link className="button button-secondary" href="/dating?tab=settings">Анкета и приватность знакомств</Link>
       </div>
       {profile ? (
         <ProfileForm profile={profile} interests={interests} />
