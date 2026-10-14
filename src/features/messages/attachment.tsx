@@ -30,8 +30,9 @@ function ImageAttachment({ name, url }: { name: string; url: string }) {
   </>;
 }
 
-export function MessageAttachment({ name, type, size, url, downloadUrl }: {
+export function MessageAttachment({ name, type, size, url, downloadUrl, presentation = "message" }: {
   name: string; type: string; size: number; url: string | null; downloadUrl: string | null;
+  presentation?: "message" | "post";
 }) {
   const image = ["image/jpeg", "image/png", "image/webp"].includes(type);
   const audio = type.startsWith("audio/");
@@ -42,7 +43,7 @@ export function MessageAttachment({ name, type, size, url, downloadUrl }: {
   const fileUrl = downloadUrl || url;
   const FileIcon = type === "application/zip" ? FileArchive : FileText;
 
-  return <div className={styles.attachment}>
+  return <div className={`${styles.attachment}${presentation === "post" && (image || video) ? ` ${styles.postMedia}` : ""}`}>
     {url && image && <ImageAttachment key={url} name={name} url={url} />}
     {url && audio && <AudioPlayer src={url} title={name} hideDownload />}
     {url && video && <video className={styles.mediaVideo} controls controlsList="nodownload" preload="metadata" src={url} aria-label={`Видео: ${name}`}>

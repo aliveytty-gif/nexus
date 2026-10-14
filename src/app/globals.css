@@ -93,6 +93,8 @@ button:disabled {
 .attachment-selections progress { display: block; width: 100%; height: 5px; accent-color: var(--primary); margin: 5px 0; }
 .attachment-error { display: block; color: #fda4af; font-size: .82rem; margin-top: 5px; overflow-wrap: anywhere; }
 .post-attachments { display: grid; gap: 14px; margin: 14px 0; }
+.post-image-preview { display: block; width: 100%; container-type: inline-size; cursor: zoom-in; }
+.post-image-preview img { display: block; width: 100%; height: auto; min-height: 52.356cqw; max-height: 125cqw; object-fit: cover; border-radius: 12px; }
 @media (max-width: 600px) { .attachment-desktop-hint { display: none; } }
 h1,
 h2,
