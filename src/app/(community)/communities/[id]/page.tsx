@@ -17,7 +17,7 @@ export const metadata = { title: "Сообщество" };
 
 export default async function CommunityPage({ params, searchParams }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ page?: string; published?: string }>;
+  searchParams: Promise<{ page?: string; published?: string; saved?: string }>;
 }) {
   const { id } = await params;
   if (!UUID_PATTERN.test(id)) notFound();
@@ -40,9 +40,13 @@ export default async function CommunityPage({ params, searchParams }: {
         </div>
       </div>
       {community.description && <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{community.description}</p>}
-      {role === "owner" ? <p className="tag">Вы владелец сообщества</p> :
+      {community.owner_id === user.id ? <div className="form-stack">
+        <p className="tag">Вы владелец сообщества</p>
+        <div><Link href={`/communities/${id}/edit`} className="button button-secondary">Редактировать сообщество</Link></div>
+      </div> :
         <MembershipButton key={`${id}-${role ?? "guest"}`} communityId={id} isMember={Boolean(role)} />}
     </section>
+    {query.saved === "1" && <Notice tone="success">Изменения сохранены.</Notice>}
     {query.published && <Notice tone="success">Публикация добавлена в сообщество.</Notice>}
     {canPublish && profile ? <>
       <h2>Создать публикацию</h2>

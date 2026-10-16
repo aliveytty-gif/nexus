@@ -16,7 +16,7 @@ export function Pagination({
     <nav className="pagination" aria-label="Страницы">
       {page > 1 ? (
         <Link
-          href={`${href}?page=${page - 1}`}
+          href={`${href}${href.includes("?") ? "&" : "?"}page=${page - 1}`}
           className="button button-secondary"
         >
           Назад
@@ -29,7 +29,7 @@ export function Pagination({
       </span>
       {page < pages ? (
         <Link
-          href={`${href}?page=${page + 1}`}
+          href={`${href}${href.includes("?") ? "&" : "?"}page=${page + 1}`}
           className="button button-secondary"
         >
           Дальше

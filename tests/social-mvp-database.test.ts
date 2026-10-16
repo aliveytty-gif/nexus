@@ -353,18 +353,23 @@ describe("Social MVP PostgreSQL permissions", { concurrency: false }, () => {
   });
 
   it("creates owner atomically, allows join/leave and denies membership/ownership escalation", async () => {
+    const avatar = `https://example.supabase.co/storage/v1/object/public/avatars/${ALICE}/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.webp`;
+    const edited = { name: "Renamed", description: "Description", avatar_url: avatar };
     await asUser(ALICE, async () => {
       assert.deepEqual((await db.query("select user_id, role from public.community_members where community_id = $1", [group])).rows,
         [{ user_id: ALICE, role: "owner" }]);
       assert.equal((await db.query("delete from public.community_members where community_id = $1 returning user_id", [group])).rows.length, 0);
-      await db.query("update public.communities set name = 'Renamed', description = 'Description' where id = $1", [group]);
+      assert.deepEqual((await db.query(
+        "update public.communities set name = 'Renamed', description = 'Description', avatar_url = $2 where id = $1 returning name, description, avatar_url",
+        [group, avatar])).rows, [edited]);
       await assert.rejects(() => db.query("update public.communities set owner_id = $1 where id = $2", [BOB, group]), { code: "42501" });
       await assert.rejects(() => db.query("update public.communities set type = 'group' where id = $1", [channel]), { code: "42501" });
       await assert.rejects(() => scalar("select public.create_community('', '', 'group', null) as id", []), { code: "23514" });
     });
     await asUser(BOB, async () => {
       await db.query("insert into public.community_members (community_id, user_id) values ($1, $3), ($2, $3)", [group, channel, BOB]);
-      assert.equal((await db.query("update public.communities set name = 'Stolen' where id = $1 returning id", [group])).rows.length, 0);
+      assert.equal((await db.query("update public.communities set name = 'Stolen', description = 'Changed', avatar_url = null where id = $1 returning id", [group])).rows.length, 0);
+      assert.deepEqual((await db.query("select name, description, avatar_url from public.communities where id = $1", [group])).rows, [edited]);
       await assert.rejects(() => db.query("update public.community_members set role = 'owner' where user_id = $1", [BOB]), { code: "42501" });
       await assert.rejects(() => db.query("insert into public.community_members (community_id, user_id, role) values ($1, $2, 'admin')",
         [group, EVE]), { code: "42501" });

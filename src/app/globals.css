@@ -317,6 +317,27 @@ svg {
   padding: 11px 13px;
   color: var(--foreground);
 }
+.password-field {
+  position: relative;
+}
+.password-field .input {
+  padding-right: 3.25rem;
+}
+.password-toggle {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 3rem;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.password-toggle:hover {
+  color: var(--foreground);
+}
 .input::placeholder {
   color: #858ba4;
 }
