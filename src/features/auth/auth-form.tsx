@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { loginAction, registerAction } from "@/features/auth/actions";
 import type { AuthActionState } from "@/features/auth/types";
 import { Notice } from "@/components/ui/notice";
@@ -18,6 +18,7 @@ export function AuthForm({
   configured: boolean;
 }) {
   const register = mode === "register";
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [state, action, pending] = useActionState<AuthActionState, FormData>(
     register ? registerAction : loginAction,
     {},
@@ -123,21 +124,33 @@ export function AuthForm({
         <label className="label" htmlFor="password">
           Пароль
         </label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          className="input"
-          placeholder={register ? "Не менее 8 символов" : "Ваш пароль"}
-          autoComplete={register ? "new-password" : "current-password"}
-          required
-          minLength={register ? 8 : undefined}
-          maxLength={128}
-          value={fields.password}
-          onChange={(e) => update("password", e.target.value)}
-          aria-invalid={Boolean(errors.password)}
-          aria-describedby={errors.password ? "password-error" : undefined}
-        />
+        <div className="password-field">
+          <input
+            id="password"
+            name="password"
+            type={passwordVisible ? "text" : "password"}
+            className="input"
+            placeholder={register ? "Не менее 8 символов" : "Ваш пароль"}
+            autoComplete={register ? "new-password" : "current-password"}
+            required
+            minLength={register ? 8 : undefined}
+            maxLength={128}
+            value={fields.password}
+            onChange={(e) => update("password", e.target.value)}
+            aria-invalid={Boolean(errors.password)}
+            aria-describedby={errors.password ? "password-error" : undefined}
+          />
+          <button
+            type="button"
+            className="password-toggle"
+            aria-label={passwordVisible ? "Скрыть пароль" : "Показать пароль"}
+            aria-controls="password"
+            aria-pressed={passwordVisible}
+            onClick={() => setPasswordVisible((visible) => !visible)}
+          >
+            {passwordVisible ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}
+          </button>
+        </div>
         {errors.password && (
           <p className="error-text" id="password-error">
             {errors.password}

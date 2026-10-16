@@ -64,3 +64,36 @@ export async function membershipAction(
   revalidatePath("/communities");
   return {};
 }
+
+export async function updateCommunityAction(
+  communityId: string,
+  _previous: CommunityFormState,
+  formData: FormData,
+): Promise<CommunityFormState> {
+  const user = await requireUser(`/communities/${communityId}/edit`);
+  if (!UUID_PATTERN.test(communityId)) return { error: "Сообщество не найдено." };
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const avatarUrl = String(formData.get("avatar_url") ?? "").trim();
+  const values = { name, description };
+  if (!name || name.length > 100)
+    return { ...values, error: "Название должно содержать от 1 до 100 символов." };
+  if (description.length > 1000)
+    return { ...values, error: "Описание должно быть не длиннее 1 000 символов." };
+
+  const supabase = await createClient();
+  const { data: community, error: readError } = await supabase.from("communities")
+    .select("avatar_url").eq("id", communityId).eq("owner_id", user.id).maybeSingle();
+  if (readError) return { ...values, error: "Не удалось загрузить сообщество. Попробуйте ещё раз." };
+  if (!community) return { ...values, error: "Редактировать сообщество может только владелец." };
+  if (avatarUrl && avatarUrl !== community.avatar_url && !ownedImagePath(avatarUrl, "avatars", user.id))
+    return { ...values, error: "Загрузите фото сообщества заново." };
+
+  const { data, error } = await supabase.from("communities")
+    .update({ name, description, avatar_url: avatarUrl || null })
+    .eq("id", communityId).eq("owner_id", user.id).select("id").maybeSingle();
+  if (error || !data) return { ...values, error: "Не удалось сохранить сообщество. Попробуйте ещё раз." };
+  revalidatePath("/communities");
+  revalidatePath(`/communities/${communityId}`);
+  redirect(`/communities/${communityId}?saved=1`);
+}
