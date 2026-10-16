@@ -681,6 +681,24 @@ textarea.input {
   font-size: 0.7rem;
   color: #9399b3;
 }
+.nav-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+}
+.nav-pending-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: nav-pending-spin .8s linear infinite;
+}
+@keyframes nav-pending-spin {
+  to { transform: rotate(360deg); }
+}
 .sidebar-footer {
   margin-top: 32px;
   border-top: 1px solid var(--border);
@@ -693,6 +711,38 @@ textarea.input {
 }
 .content {
   min-width: 0;
+}
+.route-loading {
+  display: grid;
+  gap: 24px;
+}
+.loading-heading {
+  display: grid;
+  gap: 12px;
+}
+.loading-block {
+  display: block;
+  border-radius: 6px;
+  background: #292d43;
+  animation: loading-pulse 1.6s ease-in-out infinite alternate;
+}
+.loading-line {
+  width: 100%;
+  height: 12px;
+}
+.loading-avatar {
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+}
+.loading-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+@keyframes loading-pulse {
+  to { opacity: .45; }
 }
 .friend-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .person-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }

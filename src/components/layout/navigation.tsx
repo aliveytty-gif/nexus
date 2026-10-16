@@ -1,6 +1,7 @@
 "use client";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
 import {
   LayoutList,
   UserRound,
@@ -12,6 +13,22 @@ import {
   Sparkles,
   Heart,
 } from "lucide-react";
+
+function NavigationIcon({ children }: { children: ReactNode }) {
+  const { pending } = useLinkStatus();
+
+  return (
+    <>
+      <span className="nav-icon" aria-hidden="true">
+        {pending ? <span className="nav-pending-spinner" /> : children}
+      </span>
+      <span className="sr-only" role="status" aria-live="polite">
+        {pending ? "Загрузка раздела…" : ""}
+      </span>
+    </>
+  );
+}
+
 export function Navigation({ username }: { username: string }) {
   const pathname = usePathname();
   const links = [
@@ -68,10 +85,13 @@ export function Navigation({ username }: { username: string }) {
         <Link
           href={href}
           className={`nav-link${active ? " active" : ""}`}
+          aria-label={soon ? `${label} скоро` : label}
           aria-current={active ? "page" : undefined}
           key={href}
         >
-          <Icon size={20} />
+          <NavigationIcon>
+            <Icon size={20} />
+          </NavigationIcon>
           <span>{label}</span>
           {soon && <span className="soon-badge">скоро</span>}
         </Link>
