@@ -4,6 +4,7 @@ import { Brand } from "@/components/brand";
 import { Avatar } from "@/components/ui/avatar";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Navigation } from "@/components/layout/navigation";
+import { PersistentAudioProvider } from "@/components/ui/audio-player";
 import { requireUser } from "@/lib/auth/session";
 import { displayName } from "@/lib/format";
 import { getProfileById } from "@/features/profiles/data";
@@ -20,6 +21,7 @@ export default async function CommunityLayout({
     throw new Error("Профиль не создан. Проверьте миграцию и триггер Auth.");
   const name = displayName(profile);
   return (
+    <PersistentAudioProvider key={user.id}>
     <div className="app-shell">
       <header className="app-header">
         <div className="app-header-inner">
@@ -36,7 +38,7 @@ export default async function CommunityLayout({
               <Avatar name={name} url={profile.avatar_url} size="sm" />
               <span>{name}</span>
             </Link>
-            <form action={logoutAction}>
+            <form action={logoutAction} data-stop-audio>
               <SubmitButton
                 className="button button-quiet"
                 pendingText="Выход…"
@@ -66,5 +68,6 @@ export default async function CommunityLayout({
         </main>
       </div>
     </div>
+    </PersistentAudioProvider>
   );
 }

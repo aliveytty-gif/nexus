@@ -1,4 +1,4 @@
-// Schema contract through 202610130002_dating.sql.
+// Schema contract through 202610190001_profile_cover.sql.
 // Regenerate from your Supabase project after changing migrations (see README).
 export type Json =
   | string
@@ -87,6 +87,7 @@ export type Database = {
           last_name: string;
           username: string;
           avatar_url: string | null;
+          cover_url: string | null;
           bio: string;
           specialty: string;
           course: number | null;
@@ -100,6 +101,7 @@ export type Database = {
           last_name?: string;
           username: string;
           avatar_url?: string | null;
+          cover_url?: string | null;
           bio?: string;
           specialty?: string;
           course?: number | null;
@@ -113,6 +115,7 @@ export type Database = {
           last_name?: string;
           username?: string;
           avatar_url?: string | null;
+          cover_url?: string | null;
           bio?: string;
           specialty?: string;
           course?: number | null;

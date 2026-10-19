@@ -50,6 +50,9 @@ describe(
         "utf8",
       );
       await db.exec(migration);
+      await db.exec(await readFile(new URL(
+        "../supabase/migrations/202610190001_profile_cover.sql", import.meta.url,
+      ), "utf8"));
     });
 
     beforeEach(async () => {
@@ -234,6 +237,47 @@ describe(
         assert.equal(posts.rows.length, 1);
         assert.equal(comments.rows.length, 1);
       });
+    });
+
+    it("lets only the owner change or remove a profile cover", async () => {
+      const cover = `https://example.supabase.co/storage/v1/object/public/avatars/${ALICE}/cover.jpg`;
+      await asUser(ALICE, async () => {
+        const saved = await db.query<{ cover_url: string }>(
+          "update public.profiles set cover_url=$1 where id=$2 returning cover_url", [cover, ALICE],
+        );
+        assert.equal(saved.rows[0].cover_url, cover);
+      });
+      await asUser(BOB, async () => {
+        assert.equal((await db.query(
+          "update public.profiles set cover_url=null where id=$1 returning id", [ALICE],
+        )).rows.length, 0);
+        assert.equal((await db.query<{ cover_url: string }>(
+          "select cover_url from public.profiles where id=$1", [ALICE],
+        )).rows[0].cover_url, cover);
+      });
+      await asUser(ALICE, async () => {
+        await saveProfile("alice");
+        assert.equal((await db.query<{ cover_url: string }>(
+          "select cover_url from public.profiles where id=$1", [ALICE],
+        )).rows[0].cover_url, cover, "existing profile RPC retains the cover");
+        const cleared = await db.query<{ cover_url: null }>(
+          "update public.profiles set cover_url=null where id=$1 returning cover_url", [ALICE],
+        );
+        assert.equal(cleared.rows[0].cover_url, null);
+      });
+      await asUser(null, async () => {
+        assert.equal((await db.query(
+          "update public.profiles set cover_url=$1 where id=$2 returning id", [cover, ALICE],
+        )).rows.length, 0);
+      });
+      await db.exec("set role anon");
+      try {
+        await assert.rejects(() => db.query(
+          "update public.profiles set cover_url=$1 where id=$2", [cover, ALICE],
+        ), { code: "42501" });
+      } finally {
+        await db.exec("reset role");
+      }
     });
 
     it("blocks forged authors and writes to another user’s profile, posts, or interests", async () => {
@@ -446,6 +490,10 @@ describe(
           ["avatar_url", "https://"],
           ["avatar_url", "https://example.com/with space"],
           ["avatar_url", `https://example.com/${"x".repeat(2048)}`],
+          ["cover_url", "http://example.com/cover.jpg"],
+          ["cover_url", "https://"],
+          ["cover_url", "https://example.com/with space"],
+          ["cover_url", `https://example.com/${"x".repeat(2048)}`],
         ];
         for (const [column, value] of invalidFields) {
           await assert.rejects(

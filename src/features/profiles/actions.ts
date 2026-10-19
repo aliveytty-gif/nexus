@@ -26,6 +26,20 @@ export async function updateAvatarAction(url: string): Promise<{ error?: string 
   return {};
 }
 
+export async function updateCoverAction(url: string | null): Promise<{ error?: string }> {
+  const user = await requireUser("/profile/edit");
+  if (url !== null && !ownedImagePath(url, "avatars", user.id))
+    return { error: "Недопустимый адрес обложки." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("profiles")
+    .update({ cover_url: url }).eq("id", user.id).select("username").single();
+  if (error) return { error: "Не удалось сохранить обложку. Попробуйте ещё раз." };
+  // Keep the original object: the same owned photo may also be used as an avatar.
+  revalidatePath(`/profile/${data.username}`);
+  revalidatePath("/profile/edit");
+  return {};
+}
+
 export async function updateProfileAction(
   _previous: ProfileActionState,
   formData: FormData,
