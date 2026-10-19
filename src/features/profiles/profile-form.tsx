@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useActionState, useState } from "react";
-import { Check } from "lucide-react";
+import { Check, ImagePlus } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Notice } from "@/components/ui/notice";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { updateProfileAction, updateAvatarAction } from "@/features/profiles/actions";
+import { updateProfileAction, updateAvatarAction, updateCoverAction } from "@/features/profiles/actions";
 import { createClient } from "@/lib/supabase/client";
-import { IMAGE_ACCEPT, uploadImage } from "@/lib/storage";
+import { IMAGE_ACCEPT, uploadImage, isStorageImage } from "@/lib/storage";
 import type {
   ProfileActionState,
   ProfileWithInterests,
@@ -30,6 +31,9 @@ export function ProfileForm({
   const router = useRouter();
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [coverUrl, setCoverUrl] = useState(profile.cover_url ?? "");
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverError, setCoverError] = useState("");
   const [fields, setFields] = useState({
     first_name: profile.first_name,
     last_name: profile.last_name,
@@ -57,7 +61,7 @@ export function ProfileForm({
     <form
       action={action}
       className="card profile-editor form-stack"
-      aria-busy={pending || uploading}
+      aria-busy={pending || uploading || coverUploading}
     >
       {state.error && <Notice tone="error">{state.error}</Notice>}
       <div className="profile-avatar-row">
@@ -76,7 +80,7 @@ export function ProfileForm({
       <div className="field">
         <label className="label" htmlFor="avatar-file">Загрузить фото</label>
         <input id="avatar-file" className="input" type="file" accept={IMAGE_ACCEPT}
-          disabled={pending || uploading}
+          disabled={pending || uploading || coverUploading}
           aria-describedby="avatar-upload-help"
           onChange={async (event) => {
             const file = event.target.files?.[0];
@@ -104,6 +108,54 @@ export function ProfileForm({
         </p>
         {uploadError && <Notice tone="error">{uploadError}</Notice>}
       </div>
+      <section className="field" aria-labelledby="cover-title">
+        <h2 id="cover-title">Обложка профиля</h2>
+        <div className="profile-cover profile-cover-custom profile-cover-editor">
+          <Image src={coverUrl || "/nexus-artwork.png"} alt="Предпросмотр обложки" fill
+            sizes="(max-width: 600px) 100vw, 760px" className="profile-cover-image"
+            unoptimized={Boolean(coverUrl) && !isStorageImage(coverUrl)} />
+        </div>
+        <label className="file-picker">
+          <span className="file-picker-icon"><ImagePlus size={22} aria-hidden="true" /></span>
+          <span className="file-picker-copy"><strong>{coverUploading ? "Сохраняем обложку…" : "Изменить обложку"}</strong>
+            <span className="muted small">JPG, PNG или WEBP · до 5 МБ</span>
+          </span>
+          <input type="file" accept={IMAGE_ACCEPT} aria-label="Изменить обложку"
+            aria-describedby="cover-upload-help" disabled={pending || uploading || coverUploading}
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (!file) return;
+              setCoverUploading(true);
+              setCoverError("");
+              const supabase = createClient();
+              try {
+                const uploaded = await uploadImage(supabase, "avatars", file, { preserveOriginal: true });
+                const result = await updateCoverAction(uploaded.url);
+                if (result.error) throw new Error(result.error);
+                setCoverUrl(uploaded.url);
+                router.refresh();
+              } catch (error) {
+                setCoverError(error instanceof Error ? error.message : "Не удалось загрузить обложку.");
+              } finally { setCoverUploading(false); }
+            }} />
+        </label>
+        <p id="cover-upload-help" className="muted small">Сохраняется сразу. Исходник остаётся без сжатия; превью заполняет шапку без растяжения.</p>
+        {coverUrl && <div><button type="button" className="button button-secondary"
+          disabled={pending || uploading || coverUploading} onClick={async () => {
+            setCoverUploading(true);
+            setCoverError("");
+            try {
+              const result = await updateCoverAction(null);
+              if (result.error) throw new Error(result.error);
+              setCoverUrl("");
+              router.refresh();
+            } catch (error) {
+              setCoverError(error instanceof Error ? error.message : "Не удалось убрать обложку.");
+            } finally { setCoverUploading(false); }
+          }}>Вернуть обложку NEXUS</button></div>}
+        {coverError && <Notice tone="error">{coverError}</Notice>}
+      </section>
       <div className="form-grid">
         <div className="field">
           <label className="label" htmlFor="first_name">
@@ -329,7 +381,7 @@ export function ProfileForm({
         </p>
       </fieldset>
       <div className="profile-form-actions">
-        <SubmitButton pendingText="Сохраняем профиль…" disabled={uploading}>
+        <SubmitButton pendingText="Сохраняем профиль…" disabled={uploading || coverUploading}>
           Сохранить профиль <Check size={17} aria-hidden="true" />
         </SubmitButton>
         <Link

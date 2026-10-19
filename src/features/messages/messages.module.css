@@ -52,6 +52,13 @@
 .audioStatus { display: block; color: var(--muted); font-size: .73rem; line-height: 1.4; overflow-wrap: anywhere; }
 .audioStatus:empty { display: none; }
 .audioSpinner { animation: audioSpin 1s linear infinite; }
+.persistentAudio { position: fixed; z-index: 35; right: 20px; bottom: 18px; display: grid; grid-template-columns: 42px minmax(0, 1fr) 30px; align-items: center; gap: 11px; width: min(460px, calc(100% - 40px)); padding: 12px; border: 1px solid #7c83ff75; border-radius: 14px; background: #111522f5; box-shadow: 0 8px 32px #0007; }
+.persistentAudio .audioTitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.audioClose { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; color: var(--muted); background: transparent; }
+.audioClose:hover { color: var(--foreground); background: #ffffff0c; }
+@media (max-width: 600px) {
+  .persistentAudio { right: 12px; bottom: calc(78px + env(safe-area-inset-bottom)); width: calc(100% - 24px); gap: 8px; padding: 10px; }
+}
 @keyframes audioSpin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .audioSpinner { animation: none; } }
 .message time { display: block; color: var(--muted); font-size: .7rem; margin-top: 7px; }

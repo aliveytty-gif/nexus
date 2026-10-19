@@ -1076,6 +1076,24 @@ textarea.input {
   object-fit: cover;
   object-position: center 47%;
 }
+.profile-cover-custom::after {
+  display: none;
+}
+.profile-cover-custom .profile-cover-image {
+  object-position: center;
+}
+.profile-cover-editor {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+body:has([data-persistent-audio]) .app-grid {
+  padding-bottom: 130px;
+}
+@media (max-width: 600px) {
+  body:has([data-persistent-audio]) .app-grid {
+    padding-bottom: 220px;
+  }
+}
 .profile-cover::after {
   content: "";
   position: absolute;

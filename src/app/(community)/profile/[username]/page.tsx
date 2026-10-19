@@ -17,6 +17,7 @@ import { Notice } from "@/components/ui/notice";
 import { StartConversationButton } from "@/features/messages/forms";
 import { getFriendships } from "@/features/profiles/friendships";
 import { FriendControls } from "@/features/profiles/friend-controls";
+import { isStorageImage } from "@/lib/storage";
 
 export const metadata: Metadata = { title: "Профиль" };
 
@@ -46,12 +47,12 @@ export default async function ProfilePage({
         <Notice tone="success">Профиль сохранён.</Notice>
       )}
       <article className="card profile-card">
-        <div className="profile-cover" aria-hidden="true">
-          <Image src="/nexus-artwork.png" alt="" fill
+        <div className={`profile-cover${profile.cover_url ? " profile-cover-custom" : ""}`} aria-hidden="true">
+          <Image src={profile.cover_url || "/nexus-artwork.png"} alt="" fill
             sizes="(max-width: 600px) 100vw, (max-width: 1150px) 70vw, 790px"
+            unoptimized={profile.cover_url ? !isStorageImage(profile.cover_url) : false}
             className="profile-cover-image" />
-          <span>NEXUS / COMMUNITY</span>
-          <span>На одной волне.</span>
+          {!profile.cover_url && <><span>NEXUS / COMMUNITY</span><span>На одной волне.</span></>}
         </div>
         <div className="profile-body">
           <div className="profile-topline">

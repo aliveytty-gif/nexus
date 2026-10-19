@@ -307,10 +307,11 @@ export async function uploadImage(
   supabase: SupabaseClient<Database>,
   bucket: ImageBucket,
   file: File,
+  options: { preserveOriginal?: boolean } = {},
 ) {
   const validation = validateImage(file);
   if (validation) throw new Error(validation);
-  file = await compressImage(file, bucket === "avatars" ? 1024 : 1600);
+  if (!options.preserveOriginal) file = await compressImage(file, bucket === "avatars" ? 1024 : 1600);
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) throw new Error("Войдите в аккаунт ещё раз.");
   const path = `${user.id}/${crypto.randomUUID()}.${extensions[file.type]}`;
