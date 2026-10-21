@@ -68,7 +68,6 @@ export function Navigation({ username }: { username: string }) {
       href: "/map",
       label: "Карта",
       icon: Map,
-      soon: true,
       active: pathname === "/map",
     },
     {

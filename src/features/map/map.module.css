@@ -1,0 +1,72 @@
+.mapPage { display: grid; gap: 20px; }
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.header h1 { font-size: clamp(1.65rem, 3vw, 2.15rem); line-height: 1.2; margin: 8px 0 10px; letter-spacing: -.04em; }
+.header p { margin: 0; color: var(--muted); font-size: .9rem; }
+.version { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; margin-top: 7px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 20px; color: #c7caff; font-size: .8rem; }
+.searchArea { position: relative; }
+.searchBox { display: flex; align-items: center; gap: 12px; border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 12px 16px; color: var(--muted); }
+.searchBox:focus-within { border-color: var(--primary); box-shadow: 0 0 0 2px #7c83ff20; }
+.searchBox input { min-width: 0; flex: 1; border: none; outline: none; background: transparent; color: var(--foreground); width: 100%; }
+.searchBox input::placeholder { color: var(--muted); }
+.searchHint, .gestureHint { color: var(--muted); font-size: .8rem; margin: 8px 0 0; }
+.results { position: absolute; top: 100%; left: 0; right: 0; z-index: 5; background: #141725; border: 1px solid var(--border); border-radius: 12px; padding: 8px; box-shadow: 0 20px 45px #0008; max-height: 350px; overflow-y: auto; }
+.results > p { padding: 0 9px; font-size: .85rem; color: var(--muted); }
+.results button { width: 100%; display: flex; align-items: center; gap: 12px; color: var(--foreground); background: transparent; border: 0; padding: 12px 9px; border-radius: 8px; text-align: left; }
+.results button:hover { background: #262a43; }
+.results button span { flex: 1; }
+.results strong, .results small { display: block; }
+.results small { color: var(--muted); margin-top: 3px; }
+.floorBar { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: center; }
+.floorButtons { display: flex; gap: 5px; padding: 5px; background: #111421; border: 1px solid var(--border); border-radius: 12px; }
+.floorButtons button { border: 0; border-radius: 8px; background: transparent; color: var(--muted); padding: 9px 14px; min-height: 42px; }
+.floorButtons button[aria-pressed="true"] { background: #7c83ff; color: #080a18; font-weight: 650; }
+.legend { display: flex; gap: 13px; font-size: .75rem; color: var(--muted); }
+.legend span { display: flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border: 1px solid #737993; background: #242a3c; border-radius: 2px; }
+.legend .stairSwatch { background: #4a467b; border-color: #b2a8f5; }
+.canvasWrap { position: relative; overflow: hidden; border: 1px solid #34394f; border-radius: 16px; background: radial-gradient(ellipse at center, #1b2032, #0c101b 85%); }
+.canvasHeading { position: absolute; z-index: 1; inset: 17px 19px auto; display: flex; justify-content: space-between; gap: 10px; pointer-events: none; font-size: .75rem; color: var(--muted); }
+.canvasHeading span:first-child { color: #dce0f7; font-weight: 600; }
+.canvas { width: 100%; height: clamp(300px, 36vw, 430px); display: block; touch-action: none; cursor: grab; }
+.canvas:active { cursor: grabbing; }
+.building { fill: #161d2b; stroke: #7f8aa6; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.corridor { fill: #36445b; stroke: none; }
+.room { cursor: pointer; outline: none; }
+.room polygon { fill: #242d40; stroke: #8a93ac; stroke-width: 1; vector-effect: non-scaling-stroke; transition: fill .15s; }
+.room:hover polygon, .room:focus-visible polygon { fill: #41486e; stroke: #d7dcff; stroke-width: 2; }
+.stairs polygon { fill: #49446f; stroke: #a39acb; }
+.selected polygon { fill: #5b5db0 !important; stroke: #c3c8ff !important; stroke-width: 2; }
+.roomLabel { font-size: 12px; text-anchor: middle; fill: #e8eaff; pointer-events: none; }
+.stairGlyph { fill: none; stroke: #e0daff; stroke-width: 2; pointer-events: none; }
+.selectionDot { fill: white; pointer-events: none; }
+.mapControls { position: absolute; bottom: 14px; right: 14px; display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid #424964; border-radius: 11px; background: #141a2aee; }
+.mapControls button { display: grid; place-items: center; height: 40px; width: 40px; border: none; border-radius: 7px; background: transparent; color: #dce0f7; }
+.mapControls button:hover { background: #303653; }
+.mapControls output { min-width: 45px; font-size: .75rem; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+.mapControls button:disabled, .routeCard button:disabled { cursor: default; }
+.focusRoom { position: absolute; bottom: 18px; left: 16px; display: flex; align-items: center; gap: 7px; min-height: 38px; border: 1px solid #424964; background: #141a2aee; color: #dce0f7; border-radius: 9px; padding: 7px 10px; font-size: .8rem; }
+.gestureHint { margin-top: -10px; }
+.detailsGrid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; }
+.roomCard, .routeCard { padding: 20px; }
+.detailHeading { display: flex; align-items: center; gap: 10px; color: #b6baff; }
+.detailHeading h2 { font-size: 1rem; margin: 0; color: var(--foreground); flex: 1; }
+.detailHeading button { background: transparent; border: 0; color: var(--muted); padding: 7px; display: grid; place-items: center; }
+.roomCard p, .routeCard p, .mapNotes p { font-size: .85rem; color: var(--muted); }
+.unverified { color: #d3cbb3; font-size: .74rem; }
+.routeCard button { font-size: .8rem; padding: 8px 12px; }
+.mapNotes { color: var(--muted); font-size: .82rem; padding: 3px 0 12px; }
+.mapNotes summary { cursor: pointer; width: fit-content; }
+@media (max-width: 620px) {
+  .mapPage { gap: 16px; }
+  .header { display: block; }
+  .version { margin-top: 12px; }
+  .header p { font-size: .8rem; }
+  .floorButtons { flex: 1; }
+  .floorButtons button { flex: 1; padding: 8px 10px; font-size: .85rem; }
+  .detailsGrid { grid-template-columns: 1fr; }
+  .canvas { height: 350px; }
+  .canvasHeading { inset: 13px 12px auto; font-size: .68rem; }
+  .mapControls { right: 10px; bottom: 10px; }
+  .focusRoom { top: 40px; bottom: auto; left: 10px; font-size: .75rem; }
+}
+@media (prefers-reduced-motion: reduce) { .room polygon { transition: none; } }
