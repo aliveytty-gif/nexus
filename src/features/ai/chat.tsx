@@ -1,33 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Check, Copy, LoaderCircle, Plus, Send, Sparkles } from "lucide-react";
-import Markdown from "react-markdown";
+import { ArrowDown, Check, Copy, LoaderCircle, Plus, RotateCcw, Send, Sparkles } from "lucide-react";
+import { AiAnswer } from "./answer";
+import { regenerationContext, requestMessages, type ChatMessage as Message } from "./chat-history";
 import styles from "./ai.module.css";
-
-type Message = { id: number; role: "user" | "assistant"; content: string };
-
-function safeUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.href : "";
-  } catch {
-    return "";
-  }
-}
-
-function requestMessages(messages: Message[], content: string) {
-  const previous: { role: "user" | "assistant"; content: string }[] = [];
-  let characters = content.length;
-  for (let index = messages.length - 2; index >= Math.max(0, messages.length - 6); index -= 2) {
-    const question = messages[index].content.slice(0, 4_000);
-    const answer = messages[index + 1].content.slice(0, 4_000);
-    if (characters + question.length + answer.length > 12_000) break;
-    previous.unshift({ role: "user", content: question }, { role: "assistant", content: answer });
-    characters += question.length + answer.length;
-  }
-  return [...previous, { role: "user" as const, content }];
-}
 
 export function AiChat({ enabled, dailyLimit }: { enabled: boolean; dailyLimit: number }) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -39,10 +16,12 @@ export function AiChat({ enabled, dailyLimit }: { enabled: boolean; dailyLimit: 
   const [remaining, setRemaining] = useState<number | null>(null);
   const [copied, setCopied] = useState<number | null>(null);
   const [copyError, setCopyError] = useState<number | null>(null);
+  const [showLatest, setShowLatest] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const nextId = useRef(0);
   const bottom = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+  const stickToBottom = useRef(true);
 
   useEffect(() => () => {
     const active = controller.current;
@@ -50,27 +29,48 @@ export function AiChat({ enabled, dailyLimit }: { enabled: boolean; dailyLimit: 
     active?.abort();
   }, []);
   useEffect(() => {
-    bottom.current?.scrollIntoView({ behavior: "instant", block: "nearest" });
-  }, [messages.length, pending]);
+    const update = () => {
+      stickToBottom.current = !bottom.current || bottom.current.getBoundingClientRect().top <= window.innerHeight + 140;
+      setShowLatest(!stickToBottom.current);
+    };
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => { window.removeEventListener("scroll", update); window.removeEventListener("resize", update); };
+  }, []);
+  useEffect(() => {
+    if (stickToBottom.current) bottom.current?.scrollIntoView({
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "nearest",
+    });
+  }, [messages, pending]);
+  useEffect(() => {
+    if (copied === null) return;
+    const timer = window.setTimeout(() => setCopied(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
 
   async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const content = draft.trim();
+    await ask(draft.trim());
+  }
+
+  async function ask(content: string, replaceId?: number, history = messages) {
     if (!enabled || !consent || !content || content.length > 4_000 || controller.current) return;
     const active = new AbortController();
     controller.current = active;
     const timeout = window.setTimeout(() => active.abort(), 65_000);
     setPending(true);
-    setPendingQuestion(content);
+    setPendingQuestion(replaceId === undefined ? content : "");
     setError("");
     try {
       const response = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: requestMessages(messages, content), consent: true }),
+        body: JSON.stringify({ messages: requestMessages(history, content), consent: true }),
         signal: active.signal,
       });
       const result: { reply?: unknown; error?: unknown; retryAfter?: unknown; userRemaining?: unknown } = await response.json();
+      if (controller.current !== active) return;
       if (typeof result.userRemaining === "number" && Number.isFinite(result.userRemaining)) {
         setRemaining(Math.max(0, result.userRemaining));
       }
@@ -80,10 +80,15 @@ export function AiChat({ enabled, dailyLimit }: { enabled: boolean; dailyLimit: 
           ? ` Повтори через ${Math.ceil(result.retryAfter)} сек.` : "";
         throw new Error(description + retry);
       }
-      const question: Message = { id: nextId.current++, role: "user", content };
-      const answer: Message = { id: nextId.current++, role: "assistant", content: result.reply };
-      setMessages((previous) => [...previous, question, answer]);
-      setDraft("");
+      const reply = result.reply;
+      if (replaceId === undefined) {
+        const question: Message = { id: nextId.current++, role: "user", content };
+        const answer: Message = { id: nextId.current++, role: "assistant", content: reply };
+        setMessages((previous) => [...previous, question, answer]);
+        setDraft("");
+      } else {
+        setMessages((previous) => previous.map((message) => message.id === replaceId ? { ...message, content: reply } : message));
+      }
     } catch (failure) {
       if (controller.current !== active) return;
       setError(active.signal.aborted
@@ -96,7 +101,7 @@ export function AiChat({ enabled, dailyLimit }: { enabled: boolean; dailyLimit: 
         controller.current = null;
         setPending(false);
         setPendingQuestion("");
-        input.current?.focus();
+        if (replaceId === undefined) input.current?.focus({ preventScroll: true });
       }
     }
   }
@@ -116,7 +121,7 @@ export function AiChat({ enabled, dailyLimit }: { enabled: boolean; dailyLimit: 
     <header className={styles.heading}>
       <div><h1><Sparkles size={25} aria-hidden="true" /> NEXUS AI</h1><p>Помощник для учёбы, идей и повседневных вопросов.</p></div>
       {enabled && <button className="button button-secondary" type="button" disabled={pending || (!messages.length && !draft)}
-        onClick={() => { setMessages([]); setDraft(""); setError(""); setCopied(null); setCopyError(null); setConsent(false); input.current?.focus(); }}>
+        onClick={() => { setMessages([]); setDraft(""); setError(""); setCopied(null); setCopyError(null); setConsent(false); stickToBottom.current = true; input.current?.focus({ preventScroll: true }); }}>
         <Plus size={16} aria-hidden="true" /> Новый диалог
       </button>}
     </header>
@@ -141,23 +146,32 @@ export function AiChat({ enabled, dailyLimit }: { enabled: boolean; dailyLimit: 
         {messages.map((message) => <article key={message.id} className={`${styles.message} ${message.role === "user" ? styles.mine : styles.answer}`}>
           <span className={styles.author}>{message.role === "user" ? "Ты" : "NEXUS AI"}</span>
           {message.role === "user" ? <p className={styles.question}>{message.content}</p> : <>
-            <div className={styles.markdown}><Markdown skipHtml urlTransform={safeUrl} components={{
-              a: ({ href, children }) => href ? <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> : <span>{children}</span>,
-              img: ({ src, alt }) => typeof src === "string" && safeUrl(src) ? <a href={safeUrl(src)} target="_blank" rel="noopener noreferrer">{alt || "Открыть изображение"}</a> : <span>{alt || "Изображение"}</span>,
-            }}>{message.content}</Markdown></div>
+            <AiAnswer content={message.content} />
+            <div className={styles.answerActions}>
             <button type="button" className={styles.copy} onClick={() => void copy(message)} aria-label="Скопировать ответ">
               {copied === message.id ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
               {copied === message.id ? "Скопировано" : "Копировать"}
             </button>
+            {message.id === messages.at(-1)?.id && <button type="button" className={styles.copy} disabled={pending || remaining === 0}
+              title="Новая генерация расходует ещё одно обращение к AI" onClick={() => {
+                const context = regenerationContext(messages);
+                if (context) void ask(context.question.content, context.answer.id, context.history);
+              }}><RotateCcw size={14} aria-hidden="true" /> Повторить ответ</button>}
+            </div>
             {copyError === message.id && <p className={styles.copyError} role="status">Не удалось скопировать. Выдели текст ответа вручную.</p>}
           </>}
         </article>)}
         {pending && <>
-          <article className={`${styles.message} ${styles.mine}`}><span className={styles.author}>Ты</span><p className={styles.question}>{pendingQuestion}</p></article>
-          <p className={styles.generating} role="status"><LoaderCircle size={18} aria-hidden="true" /> Ассистент готовит ответ…</p>
+          {pendingQuestion && <article className={`${styles.message} ${styles.mine}`}><span className={styles.author}>Ты</span><p className={styles.question}>{pendingQuestion}</p></article>}
+          <div className={styles.generating} role="status"><span className={styles.generatingDots} aria-hidden="true"><i /><i /><i /></span><span>Ассистент готовит ответ…</span></div>
         </>}
         <div ref={bottom} />
       </div>
+
+      {showLatest && messages.length > 0 && <button type="button" className={styles.latest} onClick={() => {
+        stickToBottom.current = true;
+        bottom.current?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "end" });
+      }}><ArrowDown size={15} aria-hidden="true" /> К последнему ответу</button>}
 
       <form className={styles.composer} onSubmit={send}>
         {error && <p className={styles.error} role="alert">{error}</p>}
