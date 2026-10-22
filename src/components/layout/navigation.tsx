@@ -74,17 +74,16 @@ export function Navigation({ username }: { username: string }) {
       href: "/ai",
       label: "NEXUS AI",
       icon: Sparkles,
-      soon: true,
       active: pathname === "/ai",
     },
   ];
   return (
     <nav className="nav-list" aria-label="Разделы NEXUS">
-      {links.map(({ href, label, icon: Icon, active, soon }) => (
+      {links.map(({ href, label, icon: Icon, active }) => (
         <Link
           href={href}
           className={`nav-link${active ? " active" : ""}`}
-          aria-label={soon ? `${label} скоро` : label}
+          aria-label={label}
           aria-current={active ? "page" : undefined}
           key={href}
         >
@@ -92,7 +91,6 @@ export function Navigation({ username }: { username: string }) {
             <Icon size={20} />
           </NavigationIcon>
           <span>{label}</span>
-          {soon && <span className="soon-badge">скоро</span>}
         </Link>
       ))}
     </nav>

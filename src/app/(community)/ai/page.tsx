@@ -1,5 +1,11 @@
-import { ComingSoon } from "@/features/modules/coming-soon";
+import { requireUser } from "@/lib/auth/session";
+import { AiChat } from "@/features/ai/chat";
+import { getAiConfig } from "@/features/ai/config";
+
 export const metadata = { title: "NEXUS AI" };
-export default function AiPage() {
-  return <ComingSoon module="ai" />;
+
+export default async function AiPage() {
+  await requireUser("/ai");
+  const config = getAiConfig();
+  return <AiChat enabled={config.enabled && config.ready} dailyLimit={config.userLimit} />;
 }

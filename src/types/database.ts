@@ -1,4 +1,4 @@
-// Schema contract through 202610190001_profile_cover.sql.
+// Schema contract through 202610220001_ai_quotas.sql.
 // Regenerate from your Supabase project after changing migrations (see README).
 export type Json =
   | string
@@ -11,6 +11,24 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      ai_quota_settings: {
+        Row: { singleton: boolean; user_limit: number; global_limit: number };
+        Insert: { singleton?: boolean; user_limit?: number; global_limit?: number };
+        Update: { user_limit?: number; global_limit?: number };
+        Relationships: [];
+      };
+      ai_global_usage: {
+        Row: { singleton: boolean; usage_day: string; attempts: number; recent_attempts: string[] };
+        Insert: { singleton?: boolean; usage_day: string; attempts?: number; recent_attempts?: string[] };
+        Update: { usage_day?: string; attempts?: number; recent_attempts?: string[] };
+        Relationships: [];
+      };
+      ai_user_usage: {
+        Row: { user_id: string; usage_day: string; attempts: number; last_attempt_at: string | null; request_id: string | null; lease_expires_at: string | null; fallback_used: boolean };
+        Insert: { user_id: string; usage_day: string; attempts?: number; last_attempt_at?: string | null; request_id?: string | null; lease_expires_at?: string | null; fallback_used?: boolean };
+        Update: { usage_day?: string; attempts?: number; last_attempt_at?: string | null; request_id?: string | null; lease_expires_at?: string | null; fallback_used?: boolean };
+        Relationships: [];
+      };
       dating_profiles: {
         Row: { user_id: string; enabled: boolean; bio: string; age: number | null; photo_paths: string[]; created_at: string; updated_at: string };
         Insert: { user_id: string; enabled?: boolean; bio?: string; age?: number | null; photo_paths?: string[]; created_at?: string; updated_at?: string };
@@ -464,6 +482,11 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
+      reserve_ai_request: {
+        Args: { p_user_limit?: number; p_global_limit?: number; p_request_id?: string | null };
+        Returns: Json;
+      };
+      finish_ai_request: { Args: { p_request_id: string }; Returns: undefined };
       save_dating_profile: {
         Args: { p_enabled: boolean; p_bio: string; p_age: number | null; p_photo_paths: string[] };
         Returns: undefined;
