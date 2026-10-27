@@ -98,14 +98,51 @@ describe("photograph-derived map data", () => {
       }
     }
   });
-  it("does not claim unconfirmed room numbers or traversable routes", () => {
+  it("does not claim numbers on unannotated floors or traversable routes", () => {
     assert.equal(map.routingStatus, "unverified");
     assert.deepEqual(map.nodes, []);
     assert.deepEqual(map.edges, []);
     assert.deepEqual(map.transitions, []);
-    for (const room of map.floors.flatMap((floor) => floor.rooms)) {
+    for (const room of map.floors.filter((floor) => floor.level !== 4).flatMap((floor) => floor.rooms)) {
       assert.equal(room.number, undefined);
       if (room.kind === "room") assert.equal(room.verified, false);
+    }
+  });
+  it("locates every supplied fourth-floor number in its annotated region, including 420 before 419", () => {
+    const floor = map.floors.find((item) => item.level === 4)!;
+    const expected: [string, number, number][] = [
+      ["401", 50, 30], ["403", 170, 30], ["405", 225, 30],
+      ["407", 420, 30], ["409", 475, 30], ["411", 530, 30],
+      ["413", 635, 30], ["415", 905, 30], ["417", 1035, 30],
+      ["402", 40, 125], ["404", 120, 125], ["406", 200, 125],
+      ["408", 325, 125], ["410", 425, 125], ["412", 650, 125],
+      ["414", 735, 125], ["416", 850, 125], ["418", 940, 125],
+      ["420", 990, 125], ["419", 1050, 125],
+    ];
+    assert.deepEqual(floor.rooms.filter((room) => room.number).map((room) => Number(room.number)).sort((a, b) => a - b),
+      Array.from({ length: 20 }, (_, index) => 401 + index));
+    for (const [number, x, y] of expected) {
+      const matches = searchRooms(map.floors.flatMap((item) => item.rooms), `№ ${number}`);
+      assert.equal(matches.length, 1, number);
+      assert.equal(matches[0].floorId, floor.id);
+      assert.ok(matches[0].verified);
+      assert.ok(inside({ x: x / 1098, y: y / 162 }, matches[0].polygon), number);
+    }
+    // These adjacent narrow sections have no supplied number.
+    for (const [x, y] of [[350, 30], [960, 30], [475, 125], [600, 125], [795, 125]]) {
+      const room = floor.rooms.find((item) => inside({ x: x / 1098, y: y / 162 }, item.polygon));
+      assert.ok(room && !room.number && !room.verified);
+    }
+    assert.ok(inside({ x: 145 / 1098, y: 30 / 162 }, floor.rooms.find((room) => room.number === "403")!.polygon));
+  });
+  it("places the supplied service rooms and toilets without inventing numbers", () => {
+    const rooms = map.floors.find((floor) => floor.level === 4)!.rooms;
+    for (const [query, x] of [["служебное слева", 120], ["женский туалет", 255], ["служебное справа", 820], ["мужской туалет", 850]] as const) {
+      const matches = searchRooms(rooms, query);
+      assert.equal(matches.length, 1);
+      assert.equal(matches[0].number, undefined);
+      assert.ok(matches[0].verified);
+      assert.ok(inside({ x: x / 1098, y: 30 / 162 }, matches[0].polygon));
     }
   });
 });

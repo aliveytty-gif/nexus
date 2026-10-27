@@ -139,8 +139,8 @@ function FloorPlan({ floor, selected, onSelect }: { floor: MapFloor; selected?: 
             <polygon points={points(room.polygon)} />
             {room.kind === "stairs" ? <path className={styles.stairGlyph} d={`M${room.label.x * 1000 - 9},${room.label.y * height + 9} h6 v-6 h6 v-6 h6 v-6`} /> : null}
             {room.kind === "entrance" ? <text x={room.label.x * 1000} y={room.label.y * height + 4} className={styles.roomLabel}>↥</text> : null}
-            {room.number ? <text x={room.label.x * 1000} y={room.label.y * height + 4} className={styles.roomLabel}>{room.number}</text> : null}
-            {selected?.id === room.id ? <circle cx={room.label.x * 1000} cy={room.label.y * height} r={3} className={styles.selectionDot} /> : null}
+            {room.number || room.shortLabel ? <text x={room.label.x * 1000} y={room.label.y * height + 4} className={styles.roomLabel}>{room.number ?? room.shortLabel}</text> : null}
+            {selected?.id === room.id && !room.number && !room.shortLabel ? <circle cx={room.label.x * 1000} cy={room.label.y * height} r={3} className={styles.selectionDot} /> : null}
           </g>
         ))}
       </svg>
@@ -175,9 +175,9 @@ export function CollegeMap({ map }: { map: CampusMap }) {
         <label className={styles.searchBox}><Search size={20} aria-hidden="true" /><span className="sr-only">Найти кабинет или помещение</span>
           <input value={query} onChange={(event) => { setQuery(event.target.value); setLimit(8); }} placeholder="Кабинет, помещение или лестница" type="search" maxLength={100} autoComplete="off" />
         </label>
-        <p className={styles.searchHint}>Номера и назначения кабинетов ещё не нанесены. Можно найти лестницы и выбрать помещения на схеме.</p>
+        <p className={styles.searchHint}>На 4 этаже нанесены кабинеты 401–420. Можно искать по номеру, названию помещения или лестнице; остальные этажи пока без номеров.</p>
         {query.trim() ? <div className={styles.results}>
-          <p role="status">{results.length ? `Найдено мест: ${results.length}` : "Ничего не найдено. Номеров кабинетов пока нет на карте."}</p>
+          <p role="status">{results.length ? `Найдено мест: ${results.length}` : "Ничего не найдено. Проверь номер или название помещения."}</p>
           {results.slice(0, limit).map((room) => <button key={room.id} type="button" onClick={() => { selectRoom(room); setQuery(""); }}>
             <MapPin size={17} /><span><strong>{room.number ? `Кабинет ${room.number}` : room.name}</strong><small>{map.floors.find((item) => item.id === room.floorId)?.name} · {roomLocation(room)}</small></span><ArrowUpRight size={17} />
           </button>)}
@@ -186,14 +186,14 @@ export function CollegeMap({ map }: { map: CampusMap }) {
       </div>
       <div className={styles.floorBar}>
         <div className={styles.floorButtons} aria-label="Выбор этажа">{map.floors.map((item) => <button type="button" key={item.id} aria-pressed={item.id === floorId} onClick={() => { setFloorId(item.id); setSelected(undefined); }}>{item.level}<span> этаж</span></button>)}</div>
-        <div className={styles.legend}><span><i />Помещения</span><span><i className={styles.stairSwatch} />Лестницы</span></div>
+        <div className={styles.legend}><span><i />Помещения</span><span><i className={styles.stairSwatch} />Лестницы</span>{floor.rooms.some((room) => room.shortLabel) ? <span>Ж/М — туалеты · С — служебное</span> : null}</div>
       </div>
       <FloorPlan key={floor.id} floor={floor} selected={selected} onSelect={selectRoom} />
       <p className={styles.gestureHint}>Перетаскивай карту, увеличивай двумя пальцами или кнопками. На компьютере — Ctrl/⌘ + прокрутка.</p>
       <div className={styles.detailsGrid}>
         <section className={`card ${styles.roomCard}`} aria-live="polite" aria-label="Выбранное место">
           <div className={styles.detailHeading}><MapPin size={21} /><h2>{selected ? (selected.number ? `Кабинет ${selected.number}` : selected.name) : "Выбери место на карте"}</h2>{selected ? <button type="button" aria-label="Снять выделение" onClick={() => setSelected(undefined)}><X size={18} /></button> : null}</div>
-          {selected ? <><p>{floor.name} · {roomLocation(selected)}</p><p>{selected.note ?? "Номер, назначение и доступность помещения требуют уточнения."}</p><span className={styles.unverified}>{selected.kind === "room" ? "Номер и доступность не подтверждены" : "Доступность и переходы требуют проверки"}</span></> : <p>Нажми на помещение или лестницу — здесь появится информация о выбранном месте.</p>}
+          {selected ? <><p>{floor.name} · {roomLocation(selected)}</p><p>{selected.note ?? "Номер, назначение и доступность помещения требуют уточнения."}</p><span className={styles.unverified}>{selected.kind === "room" ? (selected.verified ? "Подпись уточнена · доступность требует проверки" : "Номер и доступность не подтверждены") : "Доступность и переходы требуют проверки"}</span></> : <p>Нажми на помещение или лестницу — здесь появится информация о выбранном месте.</p>}
         </section>
         <section className={`card ${styles.routeCard}`}>
           <div className={styles.detailHeading}><ArrowDownToLine size={21} /><h2>Маршруты</h2></div>
@@ -201,7 +201,7 @@ export function CollegeMap({ map }: { map: CampusMap }) {
           <button className="button button-secondary" type="button" disabled>Построить маршрут</button>
         </section>
       </div>
-      <details className={styles.mapNotes}><summary>О точности карты</summary><p>{floor.note}</p><p>Контуры перенесены с фотографий, размеры приблизительные. Назначение помещений, их доступность и связи лестниц ещё не проверены. Карта для повседневной ориентации и не заменяет официальную схему эвакуации.</p></details>
+      <details className={styles.mapNotes}><summary>О точности карты</summary><p>{floor.note}</p><p>Контуры перенесены с фотографий, размеры приблизительные. Неподписанные помещения, доступность и связи лестниц ещё требуют уточнения. Карта для повседневной ориентации и не заменяет официальную схему эвакуации.</p></details>
     </section>
   );
 }
