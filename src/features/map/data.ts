@@ -7,7 +7,7 @@ type Region = readonly [number, number, number, number];
 
 // Manually traced from the four supplied photographs, with perspective flattened.
 // These are approximate plan units, not metres. No source photograph is served.
-// IDs identify drawing regions only; no cabinet numbers were legible in the source.
+// IDs identify drawing regions only. Room numbers require an explicit annotation.
 function floorGeometry(level: number, width: number, height: number) {
   const floorId = `floor${level}`;
   const point = ([x, y]: Coordinate): Point => ({ x: x / width, y: y / height });
@@ -16,7 +16,7 @@ function floorGeometry(level: number, width: number, height: number) {
     polygon([[x, y], [right, y], [right, bottom], [x, bottom]]);
   const rooms: MapRoom[] = [];
 
-  const addRoom = (bounds: Region, note?: string) => {
+  const addRoom = (bounds: Region, note?: string, details: Partial<Pick<MapRoom, "name" | "number" | "shortLabel" | "verified">> = {}) => {
     const [x, y, right, bottom] = bounds;
     rooms.push({
       id: `${floorId}-room${String(rooms.length + 1).padStart(2, "0")}`,
@@ -27,6 +27,7 @@ function floorGeometry(level: number, width: number, height: number) {
       label: point([(x + right) / 2, (y + bottom) / 2]),
       verified: false,
       note: note ?? "Номер и назначение не указаны на исходном плане. Требуется уточнение.",
+      ...details,
     });
   };
   const addStairs = (side: "left" | "right", bounds: Region) => {
@@ -171,23 +172,42 @@ function thirdFloor(): MapFloor {
 
 function fourthFloor(): MapFloor {
   const map = floorGeometry(4, 1098, 162);
-  const upperRooms: Region[] = [
-    [0, 0, 107, 64], [107, 0, 133, 64], [133, 0, 161, 64],
-    [161, 0, 210, 64], [210, 0, 239, 64], [335, 0, 383, 64],
-    [383, 0, 461, 64], [461, 0, 486, 64], [486, 0, 583, 64],
-    [583, 0, 692, 64], [867, 0, 947, 64], [947, 0, 976, 64],
-    [976, 0, 1098, 64],
+  // Supplied numbered annotation, 27.10.2026. Only 403 spans the two formerly
+  // traced regions; adjacent unlabelled sections are not assigned a room number.
+  const numberedRooms: [string, Region][] = [
+    ["401", [0, 0, 107, 64]], ["403", [133, 0, 210, 64]],
+    ["405", [210, 0, 239, 64]], ["407", [383, 0, 461, 64]],
+    ["409", [461, 0, 486, 64]], ["411", [486, 0, 583, 64]],
+    ["413", [583, 0, 692, 64]], ["415", [867, 0, 947, 64]],
+    ["417", [976, 0, 1098, 64]],
+    ["402", [0, 96, 78, 162]], ["404", [78, 96, 161, 162]],
+    ["406", [161, 96, 238, 162]], ["408", [258, 96, 386, 162]],
+    ["410", [386, 96, 461, 162]], ["412", [612, 96, 691, 162]],
+    ["414", [691, 96, 780, 162]], ["416", [807, 96, 902, 162]],
+    ["418", [902, 96, 976, 162]], ["420", [976, 96, 1010, 162]],
+    ["419", [1010, 96, 1098, 162]],
   ];
-  const lowerRooms: Region[] = [
-    [0, 96, 78, 162], [78, 96, 161, 162], [161, 96, 238, 162],
-    [238, 96, 258, 162], [258, 96, 386, 162], [386, 96, 461, 162],
-    [461, 96, 487, 162], [584, 96, 612, 162], [612, 96, 691, 162],
-    [691, 96, 780, 162], [780, 96, 807, 162], [807, 96, 902, 162],
-    [902, 96, 976, 162], [976, 96, 1010, 162], [1010, 96, 1098, 162],
+  numberedRooms.forEach(([number, bounds]) => map.addRoom(
+    bounds,
+    "Номер указан на разметке пользователя. Вход и доступность аудитории требуют проверки.",
+    { name: `Аудитория ${number}`, number, verified: true },
+  ));
+  const unlabelledRooms: Region[] = [
+    [335, 0, 383, 64], [947, 0, 976, 64], [238, 96, 258, 162],
+    [461, 96, 487, 162], [584, 96, 612, 162], [780, 96, 807, 162],
   ];
-  upperRooms.forEach((bounds) => map.addRoom(bounds));
-  lowerRooms.forEach((bounds) => map.addRoom(bounds));
-  map.addRoom([808, 0, 837, 64], "Отдельная секция справа от лестничного пролёта. Назначение и внутренние перегородки требуют уточнения.");
+  unlabelledRooms.forEach((bounds) => map.addRoom(bounds));
+  const namedRooms: [string, string, Region][] = [
+    ["Служебное помещение слева", "С", [107, 0, 133, 64]],
+    ["Женский туалет", "Ж", [239, 0, 274, 64]],
+    ["Служебное помещение справа", "С", [808, 0, 837, 64]],
+    ["Мужской туалет", "М", [837, 0, 867, 64]],
+  ];
+  namedRooms.forEach(([name, shortLabel, bounds]) => map.addRoom(
+    bounds,
+    "Назначение указано на разметке пользователя. Доступность помещения требует проверки.",
+    { name, shortLabel, verified: true },
+  ));
   map.addStairs("left", [274, 0, 316, 64]);
   map.addStairs("right", [758, 0, 805, 64]);
 
@@ -199,7 +219,7 @@ function fourthFloor(): MapFloor {
     outline: map.rectangle([0, 0, 1098, 162]),
     corridors: [map.rectangle([0, 64, 1098, 96]), map.rectangle([487, 96, 584, 162])],
     rooms: map.rooms,
-    note: "Контуры приблизительно перенесены с фотографии. Номера и названия помещений отсутствуют; неразмеченные зоны рядом с лестницами, небольшие перегородки и соединения с соседними этажами требуют уточнения.",
+    note: "Номера аудиторий и четыре назначения уточнены по разметке пользователя. Контуры приблизительные; неподписанные зоны, входы, небольшие перегородки и связи с другими этажами требуют проверки.",
   };
 }
 

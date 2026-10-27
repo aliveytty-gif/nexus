@@ -5,6 +5,7 @@ export type MapRoom = {
   floorId: string;
   name: string;
   number?: string;
+  shortLabel?: string;
   kind: "room" | "stairs" | "entrance";
   polygon: Point[];
   label: Point;
