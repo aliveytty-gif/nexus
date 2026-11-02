@@ -4,9 +4,9 @@ import { test } from "node:test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // Opt in explicitly. Never inherit the application's .env.local or use production fixtures.
-test("real Supabase message-files publication boundary (A/B/C/anonymous)", {
+test("real Supabase message-file privacy and group contact safety (A/B/C/anonymous)", {
   skip: process.env.NEXUS_STORAGE_TEST_RUN !== "1" ? "Isolated Storage test project not configured" : false,
-  timeout: 180_000,
+  timeout: 240_000,
 }, async (t) => {
   function required(name: string) {
     const value = process.env[name];
@@ -149,6 +149,90 @@ test("real Supabase message-files publication boundary (A/B/C/anonymous)", {
       const bearerResponse = await fetch(signed.signedUrl);
       assert.equal(bearerResponse.ok, true, "Already issued signed URL should not be treated as revoked by membership change");
       assert.deepEqual(new Uint8Array(await bearerResponse.arrayBuffer()), new Uint8Array(png));
+    });
+    await t.test("group admission rejects either block direction, including third-party grouping and admin additions", async () => {
+      const group = await rpc(a.client, "create_group_conversation", { p_title: "Contact safety fixture", p_member_ids: [b.id] }) as string;
+      conversations.push(group);
+      await rpc(a.client, "manage_group_member", { p_conversation_id: group, p_user_id: b.id, p_action: "promote" });
+      for (const [blocker, target] of [[b, c], [c, b]]) {
+        await rpc(blocker.client, "set_user_block", { p_user_id: target.id, p_blocked: true });
+        try {
+          const created = await a.client.rpc("create_group_conversation", { p_title: "Blocked fixture", p_member_ids: [b.id, c.id] });
+          if (typeof created.data === "string") conversations.push(created.data);
+          assert.equal(created.error?.code, "42501", "Third party grouped blocked participants");
+          for (const manager of [a, b]) {
+            const { error } = await manager.client.rpc("manage_group_member", {
+              p_conversation_id: group, p_user_id: c.id, p_action: "add",
+            });
+            assert.equal(error?.code, "42501", "Creator/admin bypassed another member's block");
+          }
+          const { data, error } = await a.client.from("conversation_members").select("user_id").eq("conversation_id", group);
+          succeeded(error, "Reading fixture membership failed");
+          assert.equal(data?.length, 2, "Rejected addition left a partial membership");
+        } finally { await rpc(blocker.client, "set_user_block", { p_user_id: target.id, p_blocked: false }); }
+      }
+      await rpc(b.client, "manage_group_member", { p_conversation_id: group, p_user_id: c.id, p_action: "add" });
+      const denied = await anonymous.rpc("create_group_conversation", { p_title: "Anonymous fixture", p_member_ids: [a.id, b.id] });
+      assert.ok(denied.error, "Anonymous group creation was allowed");
+      const internal = await a.client.rpc("lock_contact_users", { p_user_ids: [a.id, b.id] });
+      assert.ok(internal.error, "Internal locks must not be client callable");
+    });
+    await t.test("racing group creation or admission with a block preserves subsequent contact denial", async () => {
+      const [creation, blocking] = await Promise.all([
+        a.client.rpc("create_group_conversation", { p_title: "Racing creation fixture", p_member_ids: [b.id, c.id] }),
+        b.client.rpc("set_user_block", { p_user_id: c.id, p_blocked: true }),
+      ]);
+      if (typeof creation.data === "string") conversations.push(creation.data);
+      succeeded(blocking.error, "Concurrent block failed");
+      // Admission may linearize before blocking; an already-created group is retained.
+      assert.ok(!creation.error || creation.error.code === "42501", "Unexpected concurrent creation failure");
+      try {
+        const later = await a.client.rpc("create_group_conversation", { p_title: "Later creation fixture", p_member_ids: [b.id, c.id] });
+        if (typeof later.data === "string") conversations.push(later.data);
+        assert.equal(later.error?.code, "42501", "Completed block did not prevent later third-party creation");
+      } finally { await rpc(b.client, "set_user_block", { p_user_id: c.id, p_blocked: false }); }
+      const group = await rpc(a.client, "create_group_conversation", { p_title: "Racing admission fixture", p_member_ids: [b.id] }) as string;
+      conversations.push(group);
+      const [addition, nextBlock] = await Promise.all([
+        a.client.rpc("manage_group_member", { p_conversation_id: group, p_user_id: c.id, p_action: "add" }),
+        b.client.rpc("set_user_block", { p_user_id: c.id, p_blocked: true }),
+      ]);
+      succeeded(nextBlock.error, "Concurrent member block failed");
+      assert.ok(!addition.error || addition.error.code === "42501", "Unexpected concurrent admission failure");
+      try {
+        const later = await a.client.rpc("manage_group_member", { p_conversation_id: group, p_user_id: c.id, p_action: "add" });
+        assert.equal(later.error?.code, "42501", "Completed block did not prevent later admission");
+      } finally { await rpc(b.client, "set_user_block", { p_user_id: c.id, p_blocked: false }); }
+    });
+    await t.test("concurrent additions cannot admit a blocked pair; existing history survives later blocks", async () => {
+      await rpc(b.client, "set_user_block", { p_user_id: c.id, p_blocked: true });
+      try {
+        const group = await rpc(a.client, "create_group_conversation", { p_title: "Concurrent contact fixture", p_member_ids: [b.id] }) as string;
+        conversations.push(group);
+        const { error: messageError } = await a.client.from("messages").insert({ conversation_id: group, sender_id: a.id, body: "Contact safety fixture" });
+        succeeded(messageError, "Creating history fixture failed");
+        await rpc(a.client, "manage_group_member", { p_conversation_id: group, p_user_id: b.id, p_action: "remove" });
+        const additions = await Promise.all([b, c].map((member) => a.client.rpc("manage_group_member", {
+          p_conversation_id: group, p_user_id: member.id, p_action: "add",
+        })));
+        assert.equal(additions.filter((result) => !result.error).length, 1, "Concurrent blocked pair was admitted or both additions failed");
+        assert.equal(additions.filter((result) => result.error?.code === "42501").length, 1, "Missing atomic contact rejection");
+        const { data, error } = await a.client.from("conversation_members").select("user_id").eq("conversation_id", group);
+        succeeded(error, "Reading concurrent membership failed");
+        assert.equal(data?.length, 2, "Concurrent additions left unexpected membership");
+        const admitted = data?.find((member) => member.user_id !== a.id)?.user_id;
+        const member = [b, c].find((candidate) => candidate.id === admitted);
+        assert.ok(member, "Admitted fixture member missing");
+        await rpc(member.client, "set_user_block", { p_user_id: a.id, p_blocked: true });
+        try {
+          const history = await member.client.from("messages").select("id").eq("conversation_id", group);
+          succeeded(history.error, "Existing group history became inaccessible");
+          assert.equal(history.data?.length, 1);
+          const repeated = await a.client.rpc("manage_group_member", { p_conversation_id: group, p_user_id: member.id, p_action: "add" });
+          assert.equal(repeated.error?.code, "42501", "Repeat addition bypassed block");
+          await rpc(a.client, "manage_group_member", { p_conversation_id: group, p_user_id: member.id, p_action: "remove" });
+        } finally { await rpc(member.client, "set_user_block", { p_user_id: a.id, p_blocked: false }); }
+      } finally { await rpc(b.client, "set_user_block", { p_user_id: c.id, p_blocked: false }); }
     });
   } finally {
     // Delete only this run's exact paths/IDs. No bucket-wide or user-wide cleanup.

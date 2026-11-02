@@ -89,6 +89,8 @@ describe("Group chat PostgreSQL permissions", { concurrency: false }, () => {
       await update(legacyGroup, legacyAvatar);
     });
     await db.exec(await readFile(new URL("../supabase/migrations/202610300001_private_message_uploads.sql", import.meta.url), "utf8"));
+    await db.exec(await readFile(new URL("../supabase/migrations/202610130002_dating.sql", import.meta.url), "utf8"));
+    await db.exec(await readFile(new URL("../supabase/migrations/202611020001_group_contact_safety.sql", import.meta.url), "utf8"));
   });
   after(async () => { await db?.close(); });
 
@@ -365,6 +367,69 @@ describe("Group chat PostgreSQL permissions", { concurrency: false }, () => {
     await asUser(CAROL, async () => {
       assert.equal((await db.query("select id from storage.objects where name = any($1::text[])",
         [[avatar, attachmentPath, pending]])).rows.length, 2);
+    });
+  });
+
+  const block = (target: string, blocked: boolean) => db.query("select public.set_user_block($1, $2)", [target, blocked]);
+
+  it("rejects group admission in both block directions without creating partial conversations", async () => {
+    await asUser(ALICE, () => assert.rejects(db.query("select public.lock_contact_users($1::uuid[])", [[ALICE, BOB]]), { code: "42501" }));
+    await asUser(null, () => assert.rejects(db.query("select public.lock_contact_users($1::uuid[])", [[ALICE, BOB]]), { code: "42501" }), "anon");
+    const counts = async () => (await db.query("select (select count(*) from public.conversations) as groups, (select count(*) from public.conversation_members) as members")).rows;
+    const before = await counts();
+    for (const [blocker, target] of [[ALICE, BOB], [BOB, ALICE]]) {
+      await asUser(blocker, () => block(target, true));
+      try {
+        for (const actor of [ALICE, BOB]) await asUser(actor, async () => {
+          const other = actor === ALICE ? BOB : ALICE;
+          await assert.rejects(() => create([other]), { code: "42501" });
+          await assert.rejects(() => db.query("select public.get_or_create_direct_conversation($1)", [other]), { code: "42501" });
+          assert.ok((await db.query("select id from public.messages where conversation_id = $1", [direct])).rows.length > 0);
+        });
+        assert.deepEqual(await counts(), before);
+      } finally { await asUser(blocker, () => block(target, false)); }
+    }
+  });
+
+  it("prevents a third party from grouping blocked participants together", async () => {
+    await asUser(ALICE, () => block(BOB, true));
+    try {
+      await asUser(EVE, () => assert.rejects(() => create([ALICE, BOB]), { code: "42501" }));
+    } finally { await asUser(ALICE, () => block(BOB, false)); }
+  });
+
+  it("checks a new member against every current member, including reverse blocks and admin additions", async () => {
+    const id = await asUser(ALICE, () => create([BOB]));
+    await asUser(ALICE, () => manage(id, BOB, "promote"));
+    for (const [blocker, target] of [[BOB, CAROL], [CAROL, BOB], [ALICE, CAROL]]) {
+      await asUser(blocker, () => block(target, true));
+      try {
+        await asUser(ALICE, () => assert.rejects(() => manage(id, CAROL, "add"), { code: "42501" }));
+        await asUser(BOB, () => assert.rejects(() => manage(id, CAROL, "add"), { code: "42501" }));
+        assert.equal((await db.query("select user_id from public.conversation_members where conversation_id = $1", [id])).rows.length, 2);
+      } finally { await asUser(blocker, () => block(target, false)); }
+    }
+    await asUser(BOB, () => manage(id, CAROL, "add"));
+    assert.equal((await db.query("select user_id from public.conversation_members where conversation_id = $1", [id])).rows.length, 3);
+  });
+
+  it("preserves old group history and removals but denies repeat additions until the block is lifted", async () => {
+    const id = await asUser(ALICE, () => create([BOB]));
+    const message = await asUser(ALICE, () => send(id));
+    await asUser(BOB, () => block(ALICE, true));
+    try {
+      await asUser(BOB, async () => {
+        assert.equal((await db.query("select id from public.messages where id = $1", [message])).rows.length, 1);
+      });
+      await asUser(ALICE, async () => {
+        await assert.rejects(() => manage(id, BOB, "add"), { code: "42501" });
+        await manage(id, BOB, "remove");
+        await assert.rejects(() => manage(id, BOB, "add"), { code: "42501" });
+      });
+    } finally { await asUser(BOB, () => block(ALICE, false)); }
+    await asUser(ALICE, () => manage(id, BOB, "add"));
+    await asUser(BOB, async () => {
+      assert.equal((await db.query("select id from public.messages where id = $1", [message])).rows.length, 1);
     });
   });
 });
