@@ -81,6 +81,12 @@ test("real Supabase message-file privacy and group contact safety (A/B/C/anonymo
       succeeded(signInError, "Test sign-in failed");
     }
     const [a, b, c] = users;
+    async function acceptedGroup(members: typeof users, title: string) {
+      const group = await rpc(a.client, "create_group_conversation", { p_title: title, p_member_ids: members.map((member) => member.id) }) as string;
+      conversations.push(group);
+      for (const member of members) await rpc(member.client, "respond_to_group_invitation", { p_conversation_id: group, p_accept: true });
+      return group;
+    }
     const direct = await rpc(a.client, "get_or_create_direct_conversation", { p_other_user_id: b.id }) as string;
     conversations.push(direct);
     const pending = filePath(direct, a.id, "pending.txt");
@@ -123,8 +129,7 @@ test("real Supabase message-file privacy and group contact safety (A/B/C/anonymo
       for (const path of [cancelled, abandoned]) await visible(b.client, path, false);
     });
     await t.test("avatar publication and removal respect membership; old signed URLs are bearer links", async () => {
-      const group = await rpc(a.client, "create_group_conversation", { p_title: "Isolated Storage test", p_member_ids: [b.id] }) as string;
-      conversations.push(group);
+      const group = await acceptedGroup([b], "Isolated Storage test");
       const path = filePath(group, a.id, "avatar.png");
       await upload(a.client, path, png, "image/png");
       await visible(b.client, path, false);
@@ -150,9 +155,34 @@ test("real Supabase message-file privacy and group contact safety (A/B/C/anonymo
       assert.equal(bearerResponse.ok, true, "Already issued signed URL should not be treated as revoked by membership change");
       assert.deepEqual(new Uint8Array(await bearerResponse.arrayBuffer()), new Uint8Array(png));
     });
-    await t.test("group admission rejects either block direction, including third-party grouping and admin additions", async () => {
-      const group = await rpc(a.client, "create_group_conversation", { p_title: "Contact safety fixture", p_member_ids: [b.id] }) as string;
+    await t.test("invitation reveals no history or file before consent; only the recipient can accept or decline", async () => {
+      const group = await rpc(a.client, "create_group_conversation", { p_title: "Consent fixture", p_member_ids: [b.id] }) as string;
       conversations.push(group);
+      const path = filePath(group, a.id, "consent.txt");
+      await upload(a.client, path, bytes, "text/plain");
+      await publish(a.client, group, a.id, path);
+      const inbox = await rpc(b.client, "get_group_invitations", {}) as { conversation_id: string }[];
+      assert.ok(inbox.some((invitation) => invitation.conversation_id === group));
+      for (const reader of [b, c]) {
+        const history = await reader.client.from("messages").select("id").eq("conversation_id", group);
+        succeeded(history.error, "Reading consent fixture failed");
+        assert.equal(history.data?.length, 0, "Invitation granted history before acceptance");
+        await visible(reader.client, path, false);
+      }
+      await rpc(c.client, "respond_to_group_invitation", { p_conversation_id: group, p_accept: true });
+      const outsider = await c.client.from("conversation_members").select("user_id").eq("conversation_id", group);
+      assert.equal(outsider.data?.length, 0, "Outsider accepted someone else's invitation");
+      await rpc(b.client, "respond_to_group_invitation", { p_conversation_id: group, p_accept: false });
+      await visible(b.client, path, false);
+      await rpc(a.client, "manage_group_member", { p_conversation_id: group, p_user_id: b.id, p_action: "add" });
+      await rpc(b.client, "respond_to_group_invitation", { p_conversation_id: group, p_accept: true });
+      await visible(b.client, path, true);
+      const joined = await b.client.from("messages").select("id").eq("conversation_id", group);
+      succeeded(joined.error, "Joined history read failed");
+      assert.equal(joined.data?.length, 1, "Accepted member cannot read existing history");
+    });
+    await t.test("group admission rejects either block direction, including third-party grouping and admin additions", async () => {
+      const group = await acceptedGroup([b], "Contact safety fixture");
       await rpc(a.client, "manage_group_member", { p_conversation_id: group, p_user_id: b.id, p_action: "promote" });
       for (const [blocker, target] of [[b, c], [c, b]]) {
         await rpc(blocker.client, "set_user_block", { p_user_id: target.id, p_blocked: true });
@@ -172,6 +202,7 @@ test("real Supabase message-file privacy and group contact safety (A/B/C/anonymo
         } finally { await rpc(blocker.client, "set_user_block", { p_user_id: target.id, p_blocked: false }); }
       }
       await rpc(b.client, "manage_group_member", { p_conversation_id: group, p_user_id: c.id, p_action: "add" });
+      await rpc(c.client, "respond_to_group_invitation", { p_conversation_id: group, p_accept: true });
       const denied = await anonymous.rpc("create_group_conversation", { p_title: "Anonymous fixture", p_member_ids: [a.id, b.id] });
       assert.ok(denied.error, "Anonymous group creation was allowed");
       const internal = await a.client.rpc("lock_contact_users", { p_user_ids: [a.id, b.id] });
@@ -191,8 +222,7 @@ test("real Supabase message-file privacy and group contact safety (A/B/C/anonymo
         if (typeof later.data === "string") conversations.push(later.data);
         assert.equal(later.error?.code, "42501", "Completed block did not prevent later third-party creation");
       } finally { await rpc(b.client, "set_user_block", { p_user_id: c.id, p_blocked: false }); }
-      const group = await rpc(a.client, "create_group_conversation", { p_title: "Racing admission fixture", p_member_ids: [b.id] }) as string;
-      conversations.push(group);
+      const group = await acceptedGroup([b], "Racing admission fixture");
       const [addition, nextBlock] = await Promise.all([
         a.client.rpc("manage_group_member", { p_conversation_id: group, p_user_id: c.id, p_action: "add" }),
         b.client.rpc("set_user_block", { p_user_id: c.id, p_blocked: true }),
@@ -204,16 +234,18 @@ test("real Supabase message-file privacy and group contact safety (A/B/C/anonymo
         assert.equal(later.error?.code, "42501", "Completed block did not prevent later admission");
       } finally { await rpc(b.client, "set_user_block", { p_user_id: c.id, p_blocked: false }); }
     });
-    await t.test("concurrent additions cannot admit a blocked pair; existing history survives later blocks", async () => {
+    await t.test("concurrent acceptances cannot admit a blocked pair; existing history survives later blocks", async () => {
       await rpc(b.client, "set_user_block", { p_user_id: c.id, p_blocked: true });
       try {
-        const group = await rpc(a.client, "create_group_conversation", { p_title: "Concurrent contact fixture", p_member_ids: [b.id] }) as string;
-        conversations.push(group);
+        const group = await acceptedGroup([b], "Concurrent contact fixture");
         const { error: messageError } = await a.client.from("messages").insert({ conversation_id: group, sender_id: a.id, body: "Contact safety fixture" });
         succeeded(messageError, "Creating history fixture failed");
         await rpc(a.client, "manage_group_member", { p_conversation_id: group, p_user_id: b.id, p_action: "remove" });
-        const additions = await Promise.all([b, c].map((member) => a.client.rpc("manage_group_member", {
+        for (const member of [b, c]) await rpc(a.client, "manage_group_member", {
           p_conversation_id: group, p_user_id: member.id, p_action: "add",
+        });
+        const additions = await Promise.all([b, c].map((member) => member.client.rpc("respond_to_group_invitation", {
+          p_conversation_id: group, p_accept: true,
         })));
         assert.equal(additions.filter((result) => !result.error).length, 1, "Concurrent blocked pair was admitted or both additions failed");
         assert.equal(additions.filter((result) => result.error?.code === "42501").length, 1, "Missing atomic contact rejection");

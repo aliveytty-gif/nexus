@@ -34,6 +34,9 @@ export async function createGroupAction(_previous: GroupFormState, formData: For
   if (!members.length || members.some((id) => !UUID_PATTERN.test(id)))
     return { error: "Выберите участников беседы." };
   const supabase = await createClient();
+  // An unmigrated Preview must not fall back to the old immediate-add RPC behavior.
+  const { error: invitationError } = await supabase.rpc("get_group_invitations");
+  if (invitationError) return { error: "Приглашения временно недоступны. Попробуйте позже." };
   const { data, error } = await supabase.rpc("create_group_conversation", { p_title: title, p_member_ids: members });
   if (error || !data) return { error: "Не удалось создать беседу. Обновите список участников и повторите." };
   revalidatePath("/messages");
@@ -62,12 +65,38 @@ export async function manageGroupMemberAction(
   if (!UUID_PATTERN.test(conversationId) || !UUID_PATTERN.test(userId) || !["add", "remove", "promote", "demote"].includes(operation))
     return { error: "Участник недоступен." };
   const supabase = await createClient();
+  if (operation === "add") {
+    const { error: invitationError } = await supabase.rpc("get_group_invitations");
+    if (invitationError) return { error: "Приглашения временно недоступны. Попробуйте позже." };
+  }
   const { error } = await supabase.rpc("manage_group_member", {
     p_conversation_id: conversationId, p_user_id: userId, p_action: operation,
   });
   if (error) return { error: "Не удалось изменить участника. Проверьте свои права и обновите беседу." };
   revalidatePath("/messages");
-  return { success: "Состав беседы обновлён." };
+  return { success: operation === "add" ? "Приглашение отправлено. Ждём ответа." : "Состав беседы обновлён." };
+}
+
+export async function respondToGroupInvitationAction(
+  conversationId: string, _previous: GroupFormState, formData: FormData,
+): Promise<GroupFormState> {
+  const user = await requireUser("/messages");
+  const response = formData.get("response");
+  if (!UUID_PATTERN.test(conversationId) || (response !== "accept" && response !== "decline"))
+    return { error: "Приглашение недоступно." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("respond_to_group_invitation", {
+    p_conversation_id: conversationId, p_accept: response === "accept",
+  });
+  if (error) return { error: "Не удалось ответить. Обновите приглашения или отклоните недоступное приглашение." };
+  revalidatePath("/messages");
+  if (response === "accept") {
+    const { data: membership, error: membershipError } = await supabase.from("conversation_members")
+      .select("user_id").eq("conversation_id", conversationId).eq("user_id", user.id).maybeSingle();
+    if (membershipError || !membership) return { error: "Приглашение больше недоступно. Обновите список." };
+    redirect(`/messages?conversation=${conversationId}`);
+  }
+  return { success: "Приглашение отклонено." };
 }
 
 export async function leaveGroupAction(conversationId: string): Promise<GroupFormState> {

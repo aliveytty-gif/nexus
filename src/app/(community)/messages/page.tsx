@@ -6,8 +6,8 @@ import { requireUser } from "@/lib/auth/session";
 import { displayName, formatDate, pageNumber } from "@/lib/format";
 import { MessageAttachment } from "@/features/messages/attachment";
 import { UUID_PATTERN } from "@/features/posts/validation";
-import { getConversations, getConversationMessages, getConversationMembers } from "@/features/messages/data";
-import { MessageForm, RefreshMessagesButton, GroupCreateForm, GroupSettings, MessageReadMarker } from "@/features/messages/forms";
+import { getConversations, getConversationMessages, getConversationMembers, getGroupInvitations } from "@/features/messages/data";
+import { MessageForm, RefreshMessagesButton, GroupCreateForm, GroupSettings, MessageReadMarker, GroupInvitationForm } from "@/features/messages/forms";
 import styles from "@/features/messages/messages.module.css";
 
 export const metadata = { title: "Сообщения" };
@@ -23,10 +23,11 @@ export default async function MessagesPage({ searchParams }: {
   const memberPage = pageNumber(query.membersPage);
   const creating = query.new === "group" && !selectedId;
   // Both queries are scoped to the current user by RLS.
-  const [conversations, thread, roster] = await Promise.all([
+  const [conversations, thread, roster, invitationInbox] = await Promise.all([
     getConversations(),
     selectedId ? getConversationMessages(selectedId, page) : Promise.resolve(null),
     selectedId ? getConversationMembers(selectedId, memberPage) : Promise.resolve(null),
+    getGroupInvitations(),
   ]);
   const selected = conversations.find((conversation) => conversation.id === selectedId);
   if (selectedId && !selected) notFound();
@@ -37,8 +38,21 @@ export default async function MessagesPage({ searchParams }: {
     <div>
       <header className={styles.heading}>
         <div><h1>Сообщения</h1><p className="muted">Разговоры с людьми твоего колледжа.</p></div>
-        <div className={styles.groupActions}><Link href="/messages?new=group" className="button button-secondary"><Plus size={16} aria-hidden="true" /> Беседа</Link><RefreshMessagesButton /></div>
+        <div className={styles.groupActions}>{invitationInbox.available && <Link href="/messages?new=group" className="button button-secondary"><Plus size={16} aria-hidden="true" /> Беседа</Link>}<RefreshMessagesButton /></div>
       </header>
+      {invitationInbox.invitations.length > 0 && <section className={`card ${styles.invitations}`} aria-labelledby="group-invitations-title">
+        <h2 id="group-invitations-title">Приглашения в беседы</h2>
+        <p className="muted small">После вступления доступна вся история беседы. Показаны последние 50 приглашений.</p>
+        <ul className={styles.groupPeople}>{invitationInbox.invitations.map((invitation) => {
+          const inviter = `${invitation.inviter_first_name} ${invitation.inviter_last_name}`.trim() || invitation.inviter_username;
+          return <li key={invitation.conversation_id} className={styles.groupPerson}>
+            <Avatar name={invitation.title} size="sm" />
+            <div className={styles.groupPersonName}><strong>{invitation.title}</strong>
+              <span className="muted small">Приглашает {inviter}</span></div>
+            <GroupInvitationForm conversationId={invitation.conversation_id} title={invitation.title} />
+          </li>;
+        })}</ul>
+      </section>}
       <div className={`${styles.layout} ${selected || creating ? styles.selected : styles.noSelection}`}>
         <aside className={`card ${styles.list}`} aria-label="Диалоги">
           <h2>Твои диалоги</h2>
@@ -67,7 +81,7 @@ export default async function MessagesPage({ searchParams }: {
         <section className={`card ${styles.thread}`} aria-label="Переписка">
           {creating ? <>
             <Link href="/messages" className="text-link"><ArrowLeft size={16} aria-hidden="true" /> Все диалоги</Link>
-            <GroupCreateForm />
+            {invitationInbox.available ? <GroupCreateForm /> : <p role="status" className="muted">Приглашения временно недоступны. Попробуйте позже.</p>}
           </> : selected && thread ? <>
             <Link href="/messages" className={`text-link ${styles.back}`}><ArrowLeft size={16} aria-hidden="true" /> Все диалоги</Link>
             <header className={styles.threadHeader}>
@@ -79,7 +93,7 @@ export default async function MessagesPage({ searchParams }: {
             {isGroup && roster && <GroupSettings key={selected.id} conversationId={selected.id} title={name}
               avatarPath={selected.avatarPath} avatarUrl={selected.avatarUrl} myRole={selected.myRole}
               myUserId={user.id} members={roster.members} memberPage={memberPage}
-              totalMembers={roster.totalMembers} hasMoreMembers={roster.hasMoreMembers} />}
+              totalMembers={roster.totalMembers} hasMoreMembers={roster.hasMoreMembers} invitationsAvailable={invitationInbox.available} />}
             {page === 1 && thread.messages.at(-1) && <MessageReadMarker conversationId={selected.id} messageId={thread.messages.at(-1)!.id} />}
             {(thread.hasOlder || page > 1) && <nav className={styles.pagination} aria-label="История сообщений">
               {thread.hasOlder && <Link className="text-link" href={`/messages?conversation=${selected.id}&page=${page + 1}`}>Более ранние</Link>}
