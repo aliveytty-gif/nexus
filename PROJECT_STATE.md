@@ -2,6 +2,16 @@
 
 Обновлено: 2026-11-02.
 
+## Production — выпуск приватности и согласия, 02.11.2026
+
+- С явного разрешения владельца [PR #24](https://github.com/aliveytty-gif/nexus/pull/24) переведён на `main` и merged вместе с изменениями #22/#23. Функциональный release commit `9032d1eb75c31a3691474c0b580881769d19f708`, Vercel `dpl_6qs98QfWo1FetazeY5TdPfHqvKHE` — **READY**, CI main успешен. Постоянный адрес: https://nexus-chi-khaki-43.vercel.app. #22 автоматически отмечен merged; #23 закрыт как включённый в общий выпуск.
+- После READY в production Supabase `dlvuhsbxchprpvxtnedz` применены только `202610300001_private_message_uploads.sql`, `202611020001_group_contact_safety.sql`, `202611020002_group_invitations.sql` одним проверенным SQL-пакетом: **Success. No rows returned**. Один BEGIN/COMMIT, guard повторного/частичного применения, transaction-local lock timeout 5 с / statement timeout 60 с. Пакет SHA256 `e5863b7d22fbedbd159bc44f183ea22479969b1424a744c5d17a866fe8714b56` прошёл 17 локальных проверок, включая полный rollback при ошибке и отказ при повторе. SQL Editor использован вручную; CLI migration history нами не заполнялась, повторно эти SQL не запускать.
+- Read-only production-проверка до/после: Auth users 11, profiles 11, conversations 6, memberships 13, messages 12, message-files 5 — счётчики совпали, содержимое не читалось. Все три pending-флага стали false; RLS включён, внутренний helper закрыт, invitation RPC доступны authenticated и закрыты anon, два индекса и publication-bound Storage policy подтверждены.
+- Публичные health checks: `/` и `/login` — 200, `/messages` без сессии — 307 на вход. Тестовых пользователей, сообщений, бесед или файлов в production не создавалось. Полный сценарий согласия/обмена проверен ранее в изолированном Preview на двух одноразовых аккаунтах; реальные Storage/consent API — 11/11 Node tests, локально 129/129, TypeScript/lint/build прошли. Физический телефон и скорость не проверялись.
+- Пользователям старых вкладок нужно обновить страницу. Старые memberships/история сохраняются; ранее выданные signed URLs остаются bearer-ссылками до истечения срока. Pending-сироты остаются приватными без автоматического GC. После SQL возврат одного старого deployment оставит приглашения без интерфейса принятия; автоматически превращать их в участников нельзя. Тестовые Preview overrides сохранены только для `codex/group-invitations`; production env/секреты не менялись.
+
+Ниже — история проверок до этого выпуска; прежние записи «production не менялся» относятся к соответствующему этапу.
+
 ## Приглашения с согласием — Supabase и Preview, 02.11.2026
 
 - Открыт [PR #24](https://github.com/aliveytty-gif/nexus/pull/24), ветка `codex/group-invitations`, base `fix/group-contact-safety` / head PR #23 (`2933781`); цепочка зависит также от PR #22. Новая `202611020002_group_invitations.sql` сохраняет старые группы и меняет только новые вступления: create создаёт группу создателя и приглашения выбранным людям; прежний add отправляет приглашение. Получатель сам вступает или отклоняет. Pending не даёт доступа к сообщениям, составу и private Storage.
