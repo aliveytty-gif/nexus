@@ -13,6 +13,9 @@ const FILE = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa-photo.jpg";
 describe("Group chat PostgreSQL permissions", { concurrency: false }, () => {
   let db: PGlite;
   let direct: string;
+  let legacyPath: string;
+  let legacyGroup: string;
+  let legacyAvatar: string;
 
   async function asUser<T>(id: string | null, operation: () => Promise<T>, role = "authenticated") {
     await db.query("select set_config('request.jwt.claim.sub', $1, false)", [id ?? ""]);
@@ -73,6 +76,21 @@ describe("Group chat PostgreSQL permissions", { concurrency: false }, () => {
       "select public.get_or_create_direct_conversation($1) as id", [BOB])).rows[0].id);
     await asUser(ALICE, () => send(direct));
     await db.exec(await readFile(new URL("../supabase/migrations/202610110001_group_chats.sql", import.meta.url), "utf8"));
+    // Seed published objects before the privacy upgrade, including the old single-file format.
+    await asUser(ALICE, async () => {
+      legacyPath = `${direct}/${ALICE}/${FILE.replace("photo.jpg", "legacy.txt")}`;
+      await upload(legacyPath, "text/plain");
+      await db.query(`insert into public.messages
+        (conversation_id, sender_id, body, attachment_path, attachment_name, attachment_type, attachment_size)
+        values ($1, $2, '', $3, 'legacy.txt', 'text/plain', 12)`, [direct, ALICE, legacyPath]);
+      legacyGroup = await create([BOB]);
+      legacyAvatar = `${legacyGroup}/${ALICE}/${FILE}`;
+      await upload(legacyAvatar);
+      await update(legacyGroup, legacyAvatar);
+    });
+    await db.exec(await readFile(new URL("../supabase/migrations/202610300001_private_message_uploads.sql", import.meta.url), "utf8"));
+    await db.exec(await readFile(new URL("../supabase/migrations/202610130002_dating.sql", import.meta.url), "utf8"));
+    await db.exec(await readFile(new URL("../supabase/migrations/202611020001_group_contact_safety.sql", import.meta.url), "utf8"));
   });
   after(async () => { await db?.close(); });
 
@@ -241,5 +259,177 @@ describe("Group chat PostgreSQL permissions", { concurrency: false }, () => {
       "select user_id, last_read_at from public.conversation_members where conversation_id = $1 order by user_id", [id])).rows;
     assert.equal(new Date(cursors[0].last_read_at).toISOString(), "2026-01-01T00:00:00.000Z");
     assert.equal(new Date(cursors[1].last_read_at).toISOString(), "2026-01-03T00:00:00.000Z");
+  });
+
+  // These exercise actual PostgreSQL policies over emulated Storage metadata, not HTTP/downloads.
+  it("keeps a pending direct upload owner-only until a message references it", async () => {
+    const path = `${direct}/${ALICE}/${FILE.replace("photo", "pending-direct")}`;
+    await asUser(ALICE, async () => {
+      await upload(path);
+      assert.equal((await db.query("select id from storage.objects where name = $1", [path])).rows.length, 1);
+    });
+    for (const user of [BOB, EVE]) await asUser(user, async () => {
+      assert.equal((await db.query<{ name: string }>("select name from storage.objects where name like $1", [`${direct}/${ALICE}/%`]))
+        .rows.some((row) => row.name === path), false, "Listing must hide pending uploads");
+      assert.equal((await db.query("select id from storage.objects where name = $1", [path])).rows.length, 0);
+    });
+    await asUser(null, async () => {
+      assert.equal((await db.query("select id from storage.objects where name = $1", [path])).rows.length, 0);
+    }, "anon");
+    await asUser(ALICE, () => send(direct, ALICE, [{ path, name: "pending-direct.jpg", type: "image/jpeg", size: 12 }]));
+    await asUser(BOB, async () => {
+      assert.equal((await db.query("select id from storage.objects where name = $1", [path])).rows.length, 1);
+    });
+    await asUser(EVE, async () => {
+      assert.equal((await db.query("select id from storage.objects where name = $1", [path])).rows.length, 0);
+    });
+  });
+
+  it("keeps existing single-file messages and saved group avatars readable after the upgrade", async () => {
+    await asUser(BOB, async () => {
+      for (const path of [legacyPath, legacyAvatar]) {
+        assert.equal((await db.query("select id from storage.objects where name = $1", [path])).rows.length, 1);
+      }
+    });
+    await asUser(EVE, async () => {
+      assert.equal((await db.query("select id from storage.objects where name = any($1::text[])",
+        [[legacyPath, legacyAvatar]])).rows.length, 0);
+    });
+  });
+
+  it("publishes only the selected group avatar, hides its replacement draft and preserves inherited avatars", async () => {
+    const id = await asUser(ALICE, () => create([BOB]));
+    const saved = `${id}/${ALICE}/${FILE}`;
+    const draft = saved.replace("photo", "replacement");
+    await asUser(ALICE, async () => { await upload(saved); await update(id, saved); await upload(draft); });
+    await asUser(BOB, async () => {
+      assert.equal((await db.query("select id from storage.objects where name = $1", [saved])).rows.length, 1);
+      assert.equal((await db.query("select id from storage.objects where name = $1", [draft])).rows.length, 0);
+    });
+    await asUser(ALICE, () => update(id, draft));
+    await asUser(BOB, async () => {
+      assert.equal((await db.query("select id from storage.objects where name = $1", [saved])).rows.length, 0);
+      assert.equal((await db.query("select id from storage.objects where name = $1", [draft])).rows.length, 1);
+    });
+    await asUser(ALICE, () => leave(id));
+    await asUser(BOB, async () => {
+      await update(id, draft, "Inherited published avatar");
+      assert.equal((await db.query("select id from storage.objects where name = $1", [draft])).rows.length, 1);
+    });
+    await asUser(ALICE, async () => {
+      assert.equal((await db.query("select id from storage.objects where name = $1", [draft])).rows.length, 0);
+    });
+  });
+
+  it("allows owner cancellation and leaves abandoned drafts private without deleting published files", async () => {
+    const id = await asUser(ALICE, () => create([BOB]));
+    const abandoned = `${id}/${ALICE}/${FILE.replace("photo", "abandoned")}`;
+    const cancelled = abandoned.replace("abandoned", "cancelled");
+    await asUser(ALICE, async () => { await upload(abandoned); await upload(cancelled); });
+    await asUser(BOB, async () => {
+      assert.equal((await db.query("select id from storage.objects where name = any($1::text[])",
+        [[abandoned, cancelled]])).rows.length, 0);
+      assert.equal((await db.query("delete from storage.objects where name = $1 returning id", [cancelled])).rows.length, 0);
+    });
+    await asUser(ALICE, async () => {
+      assert.equal((await db.query("delete from storage.objects where name = $1 returning id", [cancelled])).rows.length, 1);
+      assert.equal((await db.query("select id from storage.objects where name = $1", [abandoned])).rows.length, 1);
+    });
+  });
+
+  it("does not let a recipient publish another owner's draft or reuse it in a different conversation", async () => {
+    const id = await asUser(ALICE, () => create([BOB]));
+    const path = `${id}/${ALICE}/${FILE}`;
+    const attachment = { path, name: "photo.jpg", type: "image/jpeg", size: 12 };
+    await asUser(ALICE, () => upload(path));
+    await asUser(BOB, () => assert.rejects(() => send(id, BOB, [attachment]), { code: "42501" }));
+    await asUser(ALICE, () => assert.rejects(() => send(direct, ALICE, [attachment]), { code: "42501" }));
+    await asUser(BOB, async () => {
+      assert.equal((await db.query("select id from storage.objects where name = $1", [path])).rows.length, 0);
+    });
+  });
+
+  it("denies removed members published files, avatars and drafts while preserving access for current members", async () => {
+    const id = await asUser(ALICE, () => create());
+    const avatar = `${id}/${ALICE}/${FILE}`;
+    const attachmentPath = avatar.replace("photo", "sent");
+    const pending = avatar.replace("photo", "pending");
+    await asUser(ALICE, async () => {
+      for (const path of [avatar, attachmentPath, pending]) await upload(path);
+      await update(id, avatar);
+      await send(id, ALICE, [{ path: attachmentPath, name: "sent.jpg", type: "image/jpeg", size: 12 }]);
+      await manage(id, BOB, "remove");
+    });
+    for (const user of [BOB, EVE]) await asUser(user, async () => {
+      assert.equal((await db.query("select id from storage.objects where name = any($1::text[])",
+        [[avatar, attachmentPath, pending]])).rows.length, 0);
+    });
+    await asUser(CAROL, async () => {
+      assert.equal((await db.query("select id from storage.objects where name = any($1::text[])",
+        [[avatar, attachmentPath, pending]])).rows.length, 2);
+    });
+  });
+
+  const block = (target: string, blocked: boolean) => db.query("select public.set_user_block($1, $2)", [target, blocked]);
+
+  it("rejects group admission in both block directions without creating partial conversations", async () => {
+    await asUser(ALICE, () => assert.rejects(db.query("select public.lock_contact_users($1::uuid[])", [[ALICE, BOB]]), { code: "42501" }));
+    await asUser(null, () => assert.rejects(db.query("select public.lock_contact_users($1::uuid[])", [[ALICE, BOB]]), { code: "42501" }), "anon");
+    const counts = async () => (await db.query("select (select count(*) from public.conversations) as groups, (select count(*) from public.conversation_members) as members")).rows;
+    const before = await counts();
+    for (const [blocker, target] of [[ALICE, BOB], [BOB, ALICE]]) {
+      await asUser(blocker, () => block(target, true));
+      try {
+        for (const actor of [ALICE, BOB]) await asUser(actor, async () => {
+          const other = actor === ALICE ? BOB : ALICE;
+          await assert.rejects(() => create([other]), { code: "42501" });
+          await assert.rejects(() => db.query("select public.get_or_create_direct_conversation($1)", [other]), { code: "42501" });
+          assert.ok((await db.query("select id from public.messages where conversation_id = $1", [direct])).rows.length > 0);
+        });
+        assert.deepEqual(await counts(), before);
+      } finally { await asUser(blocker, () => block(target, false)); }
+    }
+  });
+
+  it("prevents a third party from grouping blocked participants together", async () => {
+    await asUser(ALICE, () => block(BOB, true));
+    try {
+      await asUser(EVE, () => assert.rejects(() => create([ALICE, BOB]), { code: "42501" }));
+    } finally { await asUser(ALICE, () => block(BOB, false)); }
+  });
+
+  it("checks a new member against every current member, including reverse blocks and admin additions", async () => {
+    const id = await asUser(ALICE, () => create([BOB]));
+    await asUser(ALICE, () => manage(id, BOB, "promote"));
+    for (const [blocker, target] of [[BOB, CAROL], [CAROL, BOB], [ALICE, CAROL]]) {
+      await asUser(blocker, () => block(target, true));
+      try {
+        await asUser(ALICE, () => assert.rejects(() => manage(id, CAROL, "add"), { code: "42501" }));
+        await asUser(BOB, () => assert.rejects(() => manage(id, CAROL, "add"), { code: "42501" }));
+        assert.equal((await db.query("select user_id from public.conversation_members where conversation_id = $1", [id])).rows.length, 2);
+      } finally { await asUser(blocker, () => block(target, false)); }
+    }
+    await asUser(BOB, () => manage(id, CAROL, "add"));
+    assert.equal((await db.query("select user_id from public.conversation_members where conversation_id = $1", [id])).rows.length, 3);
+  });
+
+  it("preserves old group history and removals but denies repeat additions until the block is lifted", async () => {
+    const id = await asUser(ALICE, () => create([BOB]));
+    const message = await asUser(ALICE, () => send(id));
+    await asUser(BOB, () => block(ALICE, true));
+    try {
+      await asUser(BOB, async () => {
+        assert.equal((await db.query("select id from public.messages where id = $1", [message])).rows.length, 1);
+      });
+      await asUser(ALICE, async () => {
+        await assert.rejects(() => manage(id, BOB, "add"), { code: "42501" });
+        await manage(id, BOB, "remove");
+        await assert.rejects(() => manage(id, BOB, "add"), { code: "42501" });
+      });
+    } finally { await asUser(BOB, () => block(ALICE, false)); }
+    await asUser(ALICE, () => manage(id, BOB, "add"));
+    await asUser(BOB, async () => {
+      assert.equal((await db.query("select id from public.messages where id = $1", [message])).rows.length, 1);
+    });
   });
 });

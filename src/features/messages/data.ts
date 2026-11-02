@@ -29,6 +29,15 @@ export async function getConversations() {
   }));
 }
 
+export async function getGroupInvitations() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_group_invitations");
+  // Keep existing conversations usable before the consent migration is released.
+  if (error?.code === "PGRST202") return { available: false, invitations: [] };
+  if (error) throw new Error("Не удалось загрузить приглашения.");
+  return { available: true, invitations: data };
+}
+
 export async function getConversationMembers(conversationId: string, page: number) {
   const supabase = await createClient();
   const pageSize = 30;

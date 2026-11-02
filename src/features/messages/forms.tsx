@@ -11,7 +11,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { AttachmentPicker } from "@/components/ui/attachment-picker";
 import { IMAGE_ACCEPT, uploadAttachment, validateImage, type MessageAttachment } from "@/lib/storage";
 import { createGroupAction, leaveGroupAction, manageGroupMemberAction, markConversationReadAction, searchGroupPeopleAction,
-  sendMessageAction, startConversationAction, updateGroupAction, type GroupFormState, type GroupPerson } from "./actions";
+  respondToGroupInvitationAction, sendMessageAction, startConversationAction, updateGroupAction, type GroupFormState, type GroupPerson } from "./actions";
 import styles from "./messages.module.css";
 
 export function StartConversationButton({ userId }: { userId: string }) {
@@ -123,7 +123,7 @@ export function GroupCreateForm() {
     </div>
     <GroupPeopleSearch disabled={pending} renderPerson={(person) => <label className={styles.groupSelect}>
       <input type="checkbox" checked={selected.some((item) => item.id === person.id)} disabled={pending}
-        aria-label={`Добавить ${personName(person)} в беседу`}
+        aria-label={`Пригласить ${personName(person)} в беседу`}
         onChange={(event) => setSelected((current) => event.target.checked
           ? [...current, person] : current.filter((item) => item.id !== person.id))} />
       <span className="small">Выбрать</span>
@@ -137,9 +137,24 @@ export function GroupCreateForm() {
           aria-label={`Убрать ${personName(person)} из выбранных`}><X size={15} aria-hidden="true" /></button>
       </li>)}</ul>
     </div>}
-    <p className="muted small">Выберите хотя бы одного человека. Остальных можно добавить после создания.</p>
+    <p className="muted small">Выберите хотя бы одного человека. Он получит приглашение и сам решит, вступать ли в беседу.</p>
     {state.error && <Notice tone="error">{state.error}</Notice>}
     <div><SubmitButton pendingText="Создаём…" disabled={!selected.length || !title.trim()}><Users size={17} aria-hidden="true" /> Создать беседу</SubmitButton></div>
+  </form>;
+}
+
+export function GroupInvitationForm({ conversationId, title }: { conversationId: string; title: string }) {
+  const [state, action, pending] = useActionState(respondToGroupInvitationAction.bind(null, conversationId), {});
+  return <form action={action} className={styles.groupMemberAction} aria-busy={pending}
+    aria-label={`Ответ на приглашение в «${title}»`}>
+    <div className={styles.groupActions}>
+      <button type="submit" name="response" value="accept" className="button button-primary" disabled={pending}>
+        {pending ? "Сохраняем…" : "Вступить"}
+      </button>
+      <button type="submit" name="response" value="decline" className="button button-secondary" disabled={pending}>Отклонить</button>
+    </div>
+    {state.error && <Notice tone="error">{state.error}</Notice>}
+    {state.success && <span role="status" className="muted small">{state.success}</span>}
   </form>;
 }
 
@@ -147,7 +162,7 @@ function GroupMemberAction({ conversationId, userId, operation, name }: {
   conversationId: string; userId: string; operation: "add" | "remove" | "promote" | "demote"; name: string;
 }) {
   const [state, action, pending] = useActionState(manageGroupMemberAction.bind(null, conversationId, userId, operation), {});
-  const label = { add: "Добавить", remove: "Убрать", promote: "Назначить админом", demote: "Снять роль админа" }[operation];
+  const label = { add: "Пригласить", remove: "Убрать", promote: "Назначить админом", demote: "Снять роль админа" }[operation];
   return <form action={action} className={styles.groupMemberAction} aria-busy={pending}
     onSubmit={(event) => { if (operation === "remove" && !window.confirm(`Убрать ${name} из беседы?`)) event.preventDefault(); }}>
     <SubmitButton className="button button-secondary" pendingText="Сохраняем…" disabled={operation === "add" && !!state.success}>{label}</SubmitButton>
@@ -262,7 +277,7 @@ function LeaveGroupForm({ conversationId, creator, totalMembers }: { conversatio
   const [state, action] = useActionState(leaveGroupAction.bind(null, conversationId), {});
   const explanation = totalMembers === 1 ? "Вы последний участник. При выходе беседа и её сообщения будут удалены."
     : creator ? "Права создателя перейдут администратору, а если администраторов нет — самому раннему участнику."
-      : "После выхода переписка станет недоступна. Вернуться можно по добавлению участником с правами управления.";
+      : "После выхода переписка станет недоступна. Вернуться можно по новому приглашению от создателя или администратора.";
   return <form action={action} className={styles.groupLeave}
     onSubmit={(event) => { if (!window.confirm(`Выйти из беседы? ${explanation}`)) event.preventDefault(); }}>
     <p className="muted small">{explanation}</p>
@@ -272,9 +287,9 @@ function LeaveGroupForm({ conversationId, creator, totalMembers }: { conversatio
 }
 
 export function GroupSettings({ conversationId, title, avatarPath, avatarUrl, myRole, myUserId,
-  members, memberPage, hasMoreMembers, totalMembers }: {
+  members, memberPage, hasMoreMembers, totalMembers, invitationsAvailable }: {
   conversationId: string; title: string; avatarPath: string | null; avatarUrl: string | null;
-  myRole: GroupRole; myUserId: string; members: GroupMember[]; memberPage: number; hasMoreMembers: boolean; totalMembers: number;
+  myRole: GroupRole; myUserId: string; members: GroupMember[]; memberPage: number; hasMoreMembers: boolean; totalMembers: number; invitationsAvailable: boolean;
 }) {
   const canManage = myRole === "creator" || myRole === "admin";
   return <details className={styles.groupSettings}>
@@ -307,8 +322,9 @@ export function GroupSettings({ conversationId, title, avatarPath, avatarUrl, my
           {hasMoreMembers && <Link className="button button-secondary" href={`/messages?conversation=${conversationId}&membersPage=${memberPage + 1}`}>Далее</Link>}
         </nav>}
       </section>
-      {canManage && <section className={styles.groupSection} aria-label="Добавить участников">
-        <h3>Добавить участников</h3>
+      {canManage && invitationsAvailable && <section className={styles.groupSection} aria-label="Пригласить участников">
+        <h3>Пригласить участников</h3>
+        <p className="muted small">Доступ к переписке появится после принятия приглашения.</p>
         <GroupPeopleSearch renderPerson={(person) => members.some((member) => member.user_id === person.id)
           ? <span className="muted small">В беседе</span>
           : <GroupMemberAction conversationId={conversationId} userId={person.id} operation="add" name={personName(person)} />} />

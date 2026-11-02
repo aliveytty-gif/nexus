@@ -115,3 +115,6 @@
 .unreadBadge { display: inline-flex; align-items: center; justify-content: center; min-width: 21px; height: 21px; padding: 0 5px; border-radius: 20px; background: var(--primary); color: #fff; font-size: .7rem; font-weight: 700; }
 .messageAuthor { display: block; margin-bottom: 5px; font-size: .74rem; font-weight: 600; color: var(--primary-hover); }
 .consecutive { margin-top: -11px; }
+
+.invitations { display: grid; gap: 10px; padding: 18px; margin-bottom: 20px; min-width: 0; }
+.invitations h2 { font-size: 1rem; }

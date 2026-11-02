@@ -335,6 +335,12 @@ export type Database = {
         Update: { id?: string; direct_key?: string | null; kind?: "direct" | "group"; title?: string | null; avatar_path?: string | null; created_at?: string };
         Relationships: [];
       };
+      group_invitations: {
+        Row: { conversation_id: string; invitee_id: string; inviter_id: string; created_at: string };
+        Insert: { conversation_id: string; invitee_id: string; inviter_id: string; created_at?: string };
+        Update: { conversation_id?: string; invitee_id?: string; inviter_id?: string; created_at?: string };
+        Relationships: [];
+      };
       conversation_members: {
         Row: { conversation_id: string; user_id: string; role: "creator" | "admin" | "member"; joined_at: string; last_read_at: string };
         Insert: { conversation_id: string; user_id: string; role?: "creator" | "admin" | "member"; joined_at?: string; last_read_at?: string };
@@ -512,6 +518,15 @@ export type Database = {
       get_repost_summaries: {
         Args: { p_post_ids: string[] };
         Returns: { post_id: string; repost_count: number; my_repost_id: string | null }[];
+      };
+      get_group_invitations: {
+        Args: Record<PropertyKey, never>;
+        Returns: { conversation_id: string; title: string; inviter_id: string; inviter_username: string;
+          inviter_first_name: string; inviter_last_name: string; created_at: string }[];
+      };
+      respond_to_group_invitation: {
+        Args: { p_conversation_id: string; p_accept: boolean };
+        Returns: undefined;
       };
       create_group_conversation: {
         Args: { p_title: string; p_member_ids: string[] };
