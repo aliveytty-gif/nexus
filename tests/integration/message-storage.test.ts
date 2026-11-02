@@ -49,7 +49,7 @@ test("real Supabase message-files publication boundary (A/B/C/anonymous)", {
   async function visible(client: SupabaseClient, path: string, allowed: boolean, expected = bytes) {
     const { data, error } = await bucket(client).download(path);
     assert.equal(!error && data !== null, allowed, "Unexpected authenticated download permission");
-    if (allowed && data) assert.deepEqual(new Uint8Array(await data.arrayBuffer()), expected, "Downloaded bytes changed");
+    if (allowed && data) assert.deepEqual(new Uint8Array(await data.arrayBuffer()), new Uint8Array(expected), "Downloaded bytes changed");
     const { data: info, error: infoError } = await bucket(client).info(path);
     assert.equal(!infoError && info !== null, allowed, "Unexpected metadata permission");
     const { data: signed, error: signError } = await bucket(client).createSignedUrl(path, 60);
@@ -71,7 +71,7 @@ test("real Supabase message-files publication boundary (A/B/C/anonymous)", {
   try {
     for (let index = 0; index < 3; index++) {
       const email = `nexus-storage-${randomUUID()}@example.com`;
-      const password = `${randomUUID()}-${randomUUID()}`;
+      const password = `${randomUUID()}-Aa1!`;
       const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
       succeeded(error, "Creating isolated test user failed");
       assert.ok(data.user, "Test user missing");
