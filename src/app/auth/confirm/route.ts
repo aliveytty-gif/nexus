@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   if (!getSupabaseConfig()) return authRedirect("/setup");
   const tokenHash = request.nextUrl.searchParams.get("token_hash");
   const type = request.nextUrl.searchParams.get("type");
-  // This route only handles confirmation; password recovery is a future flow.
+  // Registration confirmation has a separate flow from password recovery.
   if (tokenHash && (type === "email" || type === "signup")) {
     const supabase = await createClient();
     const { error } = await supabase.auth.verifyOtp({

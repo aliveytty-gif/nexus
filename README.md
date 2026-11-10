@@ -192,6 +192,21 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 Для будущего допуска только по корпоративной почте потребуется серверное ограничение регистрации на стороне Supabase Auth. Одной проверки домена в форме недостаточно: API Auth можно вызвать напрямую.
 
+### Восстановление пароля
+
+1. В тестовом Supabase добавьте точный адрес `<NEXT_PUBLIC_SITE_URL>/auth/recovery` в **Authentication → URL Configuration → Redirect URLs**. Для localhost это `http://localhost:3000/auth/recovery`. В Preview используйте адрес этой версии и её тестовый Supabase. Существующие URL регистрации и Site URL сохраните.
+2. В **Authentication → Email Templates → Reset Password** установите тему «Восстановление пароля NEXUS» и ссылку:
+
+   ```html
+   <p>Чтобы задать новый пароль для NEXUS, откройте ссылку:</p>
+   <p><a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}">Задать новый пароль</a></p>
+   <p>Если вы не запрашивали смену пароля, проигнорируйте это письмо.</p>
+   ```
+
+3. Укажите серверную переменную `AUTH_PASSWORD_RECOVERY_ENABLED=true` в соответствующем окружении. Проверьте доставку настоящего письма, смену пароля в другом браузере, повтор и истечение ссылки. Если почтовый сервис переписывает адрес, проверьте его настройки отслеживания ссылок. После успешного теста настройте отдельный production URL и шаблон в production Supabase перед включением функции в Vercel.
+
+Токен подтверждается при отправке нового пароля. Если Supabase отклонит пароль после проверки токена, нужно запросить новую ссылку. Подробнее о [шаблонах Supabase](https://supabase.com/docs/guides/auth/auth-email-templates).
+
 ### Необязательный пример: Brevo SMTP
 
 В Brevo подтвердите адрес отправителя и откройте **SMTP & API → SMTP**. В Supabase **Authentication → Email → SMTP Settings** включите custom SMTP и заполните:
