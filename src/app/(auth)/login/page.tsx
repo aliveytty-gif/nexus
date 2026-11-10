@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth/session";
 import { safeNextPath } from "@/lib/auth/redirect";
 import { getSupabaseConfig } from "@/lib/env";
+import { isRecoveryEnabled } from "@/features/auth/recovery";
 import { AuthForm } from "@/features/auth/auth-form";
 import { Notice } from "@/components/ui/notice";
 
@@ -16,6 +17,7 @@ export default async function LoginPage({
 }) {
   const query = await searchParams;
   const next = safeNextPath(query.next);
+  const configured = Boolean(getSupabaseConfig());
   if (await getCurrentUser()) redirect(next);
   return (
     <>
@@ -37,8 +39,13 @@ export default async function LoginPage({
       <AuthForm
         mode="login"
         next={next}
-        configured={Boolean(getSupabaseConfig())}
+        configured={configured}
       />
+      {configured && isRecoveryEnabled() && (
+        <p className="auth-switch">
+          <Link href="/forgot-password">Забыли пароль?</Link>
+        </p>
+      )}
       <p className="auth-switch muted">
         Ещё нет аккаунта? <Link href="/register">Присоединиться</Link>
       </p>
