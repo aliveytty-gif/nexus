@@ -11,12 +11,12 @@ function serverTest(source: string) {
   execFileSync(process.execPath, [
     "--conditions=react-server", "--experimental-strip-types", "--input-type=module", "--eval",
     `import assert from "node:assert/strict";
-    const { selectFreeModels, availableModels, generateReply } = await import(${JSON.stringify(providerUrl)});
+    const { selectFreeModels, availableModels, generateReply, streamReply, probeAi, providerMessages } = await import(${JSON.stringify(providerUrl)});
     const { AiError, boundedJson, freeModelId, validateChat } = await import(${JSON.stringify(validationUrl)});
     const { getAiConfig } = await import(${JSON.stringify(configUrl)});
     const config = { ...getAiConfig(), enabled: true, ready: true, provider: "openrouter",
       apiKey: "test-only-provider-key", model: "deepseek/deepseek-v4-flash-0731:free",
-      fallbackModel: "openrouter/free", maxOutputTokens: 400, ollamaUrl: "" };
+      fallbackModel: "openrouter/free", maxOutputTokens: 400, gatewayUrl: "", gatewayToken: "", systemInstructions: "" };
     const errorIs = (code, status) => (error) => {
       assert.ok(error instanceof AiError);
       assert.equal(error.code, code);
@@ -31,7 +31,7 @@ function serverTest(source: string) {
     env: {
       ...process.env, AI_ENABLED: "", AI_PROVIDER: "", OPENROUTER_API_KEY: "", AI_MODEL: "",
       AI_FALLBACK_MODEL: "", AI_DAILY_USER_LIMIT: "", AI_DAILY_GLOBAL_LIMIT: "",
-      AI_MAX_OUTPUT_TOKENS: "", OLLAMA_BASE_URL: "", VERCEL: "", NODE_ENV: "test",
+      AI_MAX_OUTPUT_TOKENS: "", AI_GATEWAY_URL: "", AI_GATEWAY_TOKEN: "", AI_STREAMING: "", AI_SYSTEM_INSTRUCTIONS: "", VERCEL: "", NODE_ENV: "test",
     },
     timeout: 10000,
   });
@@ -171,36 +171,100 @@ describe("free AI provider routing", () => {
 });
 
 describe("AI server configuration", () => {
-  it("defaults to disabled and bounded free routing without a credential", () => serverTest(`
+  it("defaults to self-hosted local weights without a cloud fallback or credential", () => serverTest(`
     const defaults = getAiConfig();
     assert.equal(defaults.enabled, false); assert.equal(defaults.ready, false);
-    assert.equal(defaults.provider, "openrouter"); assert.equal(defaults.apiKey, "");
-    assert.equal(defaults.model, "deepseek/deepseek-v4-flash-0731:free");
-    assert.equal(defaults.fallbackModel, "openrouter/free");
+    assert.equal(defaults.provider, "ollama"); assert.equal(defaults.apiKey, "");
+    assert.equal(defaults.model, "gpt-oss:20b"); assert.equal(defaults.gatewayUrl, "");
+    assert.equal(defaults.streaming, true);
     assert.deepEqual([defaults.userLimit, defaults.globalLimit, defaults.maxOutputTokens], [5, 40, 400]);
-    assert.equal(defaults.ollamaUrl, "");
-    process.env.AI_ENABLED = "TRUE"; process.env.AI_PROVIDER = "unknown";
-    process.env.AI_DAILY_USER_LIMIT = "-2"; process.env.AI_DAILY_GLOBAL_LIMIT = "Infinity";
-    process.env.AI_MAX_OUTPUT_TOKENS = "wat";
-    assert.equal(getAiConfig().enabled, false); assert.equal(getAiConfig().provider, "openrouter");
-    assert.deepEqual([getAiConfig().userLimit, getAiConfig().globalLimit, getAiConfig().maxOutputTokens], [5, 40, 400]);
+    process.env.OPENROUTER_API_KEY = "old-existing-key";
+    assert.equal(getAiConfig().ready, false);
+    process.env.AI_PROVIDER = "openrouter";
+    assert.equal(getAiConfig().ready, true);
+    process.env.AI_PROVIDER = "unknown";
+    assert.equal(getAiConfig().provider, "ollama");
     process.env.AI_DAILY_USER_LIMIT = "999"; process.env.AI_DAILY_GLOBAL_LIMIT = "0";
     process.env.AI_MAX_OUTPUT_TOKENS = "999999";
     assert.deepEqual([getAiConfig().userLimit, getAiConfig().globalLimit, getAiConfig().maxOutputTokens], [50, 1, 1200]);
   `));
 
-  it("permits Ollama only on a local development host and never on Vercel", () => serverTest(`
-    process.env.AI_PROVIDER = "ollama"; process.env.AI_MODEL = "local-model";
-    process.env.NODE_ENV = "development"; process.env.OLLAMA_BASE_URL = "http://127.0.0.1:11434";
-    assert.equal(getAiConfig().ready, true); assert.equal(getAiConfig().ollamaUrl, "http://127.0.0.1:11434");
-    process.env.VERCEL = "1";
-    assert.equal(getAiConfig().ready, false); assert.equal(getAiConfig().ollamaUrl, "");
-    process.env.VERCEL = "";
-    for (const url of ["https://example.com", "http://user:password@localhost:11434", "file:///tmp/model", "not a URL"]) {
-      process.env.OLLAMA_BASE_URL = url;
-      assert.equal(getAiConfig().ready, false); assert.equal(getAiConfig().ollamaUrl, "");
+  it("requires a secure named gateway and a long server token, never localhost on Vercel", () => serverTest(`
+    process.env.AI_GATEWAY_TOKEN = "x".repeat(32);
+    process.env.AI_GATEWAY_URL = "https://ai.nexus.example";
+    process.env.NODE_ENV = "production"; process.env.VERCEL = "1";
+    assert.equal(getAiConfig().ready, true);
+    for (const url of ["http://ai.nexus.example", "https://127.0.0.1", "https://10.0.0.1", "https://169.254.169.254",
+      "https://[::1]", "https://localhost", "https://gateway.local", "https://internal", "https://ai.nexus.example/v1/chat",
+      "https://ai.nexus.example?key=unsafe", "https://ai.nexus.example#secret", "https://user:password@ai.nexus.example"] ) {
+      process.env.AI_GATEWAY_URL = url; assert.equal(getAiConfig().ready, false, url);
     }
-    process.env.OLLAMA_BASE_URL = "http://localhost:11434"; process.env.NODE_ENV = "production";
+    process.env.AI_GATEWAY_URL = "http://127.0.0.1:8080";
+    process.env.NODE_ENV = "development";
     assert.equal(getAiConfig().ready, false);
+    process.env.VERCEL = "";
+    assert.equal(getAiConfig().ready, true);
+    process.env.AI_GATEWAY_TOKEN = "short";
+    assert.equal(getAiConfig().ready, false);
+    process.env.AI_GATEWAY_TOKEN = "x".repeat(32); process.env.AI_MODEL = "gpt-oss:20b-cloud";
+    assert.equal(getAiConfig().ready, false);
+    process.env.AI_MODEL = "gpt-oss:20b"; process.env.AI_SYSTEM_INSTRUCTIONS = "x".repeat(2001);
+    assert.equal(getAiConfig().ready, false);
+  `));
+});
+
+describe("self-hosted AI gateway", () => {
+  it("sends a bounded persona and user history only to the authenticated gateway with redirects disabled", () => serverTest(`
+    const local = { ...config, provider: "ollama", model: "gpt-oss:20b", gatewayUrl: "https://ai.nexus.example", gatewayToken: "g".repeat(32) };
+    let calls = 0, cancelled = false;
+    const result = await generateReply(local, local.model, [{ role: "user", content: "Привет" }], undefined, async (url, options) => {
+      calls++; assert.equal(url, local.gatewayUrl + "/v1/chat"); assert.equal(options.redirect, "manual");
+      assert.equal(options.headers.Authorization, "Bearer " + local.gatewayToken);
+      const body = JSON.parse(options.body);
+      assert.deepEqual(Object.keys(body).sort(), ["maxOutputTokens", "messages", "model"]);
+      assert.equal(body.model, "gpt-oss:20b"); assert.equal(body.maxOutputTokens, 400);
+      assert.equal(body.messages[0].role, "system"); assert.ok(body.messages[0].content.includes("по-английски"));
+      assert.deepEqual(body.messages[1], { role: "user", content: "Привет" });
+      return new Response(new ReadableStream({ start(controller) {
+        for (const part of ['{"type":"delta","text":"При"}\\n', '{"type":"delta","text":"вет"}\\n', '{"type":"done"}\\n'])
+          controller.enqueue(new TextEncoder().encode(part));
+      }, cancel() { cancelled = true; } }), { headers: { "content-type": "application/x-ndjson" } });
+    });
+    assert.deepEqual(result, { reply: "Привет", model: "gpt-oss:20b" });
+    assert.equal(calls, 1); assert.equal(cancelled, true);
+    assert.deepEqual(await availableModels(local, undefined, async () => { throw new Error("no catalog or cloud"); }), [local.model]);
+  `));
+
+  it("prunes old whole pairs by conservative UTF-8 budget without mutating the submitted history", () => serverTest(`
+    const local = { ...config, provider: "ollama", systemInstructions: "Stay brief." };
+    const history = [{role:"user",content:"ёж".repeat(2000)},{role:"assistant",content:"ёж".repeat(2000)},{role:"user",content:"Вопрос"}];
+    const bounded = providerMessages(local, history);
+    assert.equal(bounded.length, 2); assert.equal(history.length, 3);
+    assert.equal(bounded[1].content, "Вопрос");
+    assert.ok(bounded[0].content.includes("Stay brief."));
+    assert.throws(() => providerMessages(local, [{role:"user",content:"😀".repeat(4000)}]), errorIs("invalid_context", 400));
+  `));
+
+  it("maps gateway failures and malformed/truncated streams without leaking upstream error text", () => serverTest(`
+    const local = { ...config, provider: "ollama", gatewayUrl: "https://ai.nexus.example", gatewayToken: "g".repeat(32) };
+    for (const [status, code] of [[302,"provider_unavailable"],[401,"provider_auth"],[429,"gateway_busy"],[504,"provider_timeout"],[500,"provider_unavailable"]])
+      await assert.rejects(generateReply(local, local.model, [{role:"user",content:"hello"}], undefined,
+        async () => new Response("raw-provider-error", {status})), errorIs(code));
+    for (const text of ['{"type":"delta","text":"partial"}\\n', '{"type":"done"}\\n', 'not-json\\n'])
+      await assert.rejects(generateReply(local, local.model, [{role:"user",content:"hello"}], undefined,
+        async () => new Response(text, {headers:{"content-type":"application/x-ndjson"}})), errorIs("provider_invalid"));
+    await assert.rejects(generateReply(local, local.model, [{role:"user",content:"hello"}], undefined,
+      async () => new Response('{"type":"error","code":"provider_auth","error":"raw-provider-error"}\\n', {headers:{"content-type":"application/x-ndjson"}})), errorIs("provider_unavailable"));
+  `));
+
+  it("uses authenticated health only and rejects mismatched models or redirected responses", () => serverTest(`
+    const local = { ...config, provider:"ollama", gatewayUrl:"https://ai.nexus.example", gatewayToken:"g".repeat(32) };
+    assert.equal(await probeAi(local, undefined, async (url, options) => {
+      assert.equal(url, local.gatewayUrl + "/healthz"); assert.equal(options.method, undefined);
+      assert.equal(options.headers.Authorization, "Bearer " + local.gatewayToken); assert.equal(options.redirect, "manual");
+      return Response.json({ready:true,model:local.model});
+    }), true);
+    for (const response of [Response.json({ready:true,model:"other"}), Response.json({ready:false,model:local.model}), new Response("redirect",{status:302})])
+      assert.equal(await probeAi(local, undefined, async () => response), false);
   `));
 });
