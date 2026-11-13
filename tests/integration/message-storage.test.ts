@@ -112,6 +112,29 @@ test("real Supabase message-file privacy and group contact safety (A/B/C/anonymo
       await visible(b.client, pending, true);
       for (const client of [c.client, anonymous]) await visible(client, pending, false);
     });
+    await t.test("simultaneous retries publish one message and one attachment set", async () => {
+      const path = filePath(direct, a.id, "retry.txt");
+      await upload(a.client, path, bytes, "text/plain");
+      const nonce = randomUUID();
+      const command = {
+        p_conversation_id: direct,
+        p_client_nonce: nonce,
+        p_body: "Same draft",
+        p_attachments: [{ path, name: "retry.txt", type: "text/plain", size: bytes.byteLength }],
+      };
+      const ids = await Promise.all(Array.from({ length: 4 }, () => rpc(a.client, "send_message", command)));
+      assert.equal(typeof ids[0], "string");
+      assert.equal(new Set(ids).size, 1);
+      const { data: messages, error } = await b.client.from("messages")
+        .select("id, attachments").eq("conversation_id", direct).eq("sender_id", a.id).eq("client_nonce", nonce);
+      succeeded(error, "Recipient could not verify the published message");
+      assert.deepEqual(messages, [{ id: ids[0], attachments: command.p_attachments }]);
+      await visible(b.client, path, true);
+      const { error: changed } = await a.client.rpc("send_message", { ...command, p_body: "Edited draft" });
+      assert.equal(changed?.code, "23505");
+      const distinctId = await rpc(a.client, "send_message", { ...command, p_client_nonce: randomUUID() });
+      assert.notEqual(distinctId, ids[0]);
+    });
     await t.test("legacy single-file message remains readable", async () => {
       const path = filePath(direct, a.id, "legacy.txt");
       await upload(a.client, path, bytes, "text/plain");

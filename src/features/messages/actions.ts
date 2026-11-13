@@ -2,12 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth/session";
+import { getCurrentUser, requireUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { UUID_PATTERN } from "@/features/posts/validation";
 import { ownedMessageFilePath, parseAttachments, type MessageAttachment } from "@/lib/storage";
 
-export type MessageFormState = { error?: string; body?: string };
+export type MessageFormState = { error?: string; messageId?: string; uncertain?: boolean };
 export type GroupFormState = { error?: string; success?: string };
 export type GroupPerson = {
   id: string; username: string; first_name: string; last_name: string; avatar_url: string | null;
@@ -134,49 +134,44 @@ export async function startConversationAction(
 
 export async function sendMessageAction(
   conversationId: string,
-  _previous: MessageFormState,
+  nonce: string,
+  senderId: string,
   formData: FormData,
 ): Promise<MessageFormState> {
-  const user = await requireUser("/messages");
+  const user = await getCurrentUser();
+  if (!user) return { error: "Сессия закончилась. Войдите снова в другой вкладке, чтобы сохранить черновик." };
+  if (user.id !== senderId) return { error: "Аккаунт изменился. Войдите в аккаунт, в котором начали сообщение." };
+  if (!UUID_PATTERN.test(conversationId) || !UUID_PATTERN.test(nonce))
+    return { error: "Обновите диалог перед отправкой." };
   const raw = formData.get("body");
   const body = typeof raw === "string" ? raw.trim() : "";
   let attachments: MessageAttachment[];
   try { attachments = parseAttachments(JSON.parse(String(formData.get("attachments") ?? "[]"))); }
-  catch (error) { return { body, error: error instanceof Error ? error.message : "Прикрепите файлы заново." }; }
+  catch (error) { return { error: error instanceof Error ? error.message : "Прикрепите файлы заново." }; }
   if ((!body && !attachments.length) || body.length > 2000)
-    return { body, error: "Введите сообщение до 2 000 символов или прикрепите файл." };
-  if (!UUID_PATTERN.test(conversationId)) return { body, error: "Диалог недоступен." };
+    return { error: "Введите сообщение до 2 000 символов или прикрепите файл." };
   for (const attachment of attachments) {
     if (!ownedMessageFilePath(attachment.path, conversationId, user.id) ||
       attachment.path.split(".").pop() !== attachment.name.split(".").pop()?.toLowerCase())
-      return { body, error: "Этот файл нельзя отправить в выбранный диалог." };
+      return { error: "Этот файл нельзя отправить в выбранный диалог." };
   }
   const supabase = await createClient();
-  const { data: member, error: memberError } = await supabase
-    .from("conversation_members")
-    .select("conversation_id")
-    .eq("conversation_id", conversationId)
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (memberError || !member)
-    return { body, error: "Диалог недоступен." };
-  const storedFiles = await Promise.all(attachments.map(async (attachment) => {
-    const { data: stored, error } = await supabase.storage.from("message-files").info(attachment.path);
-    return !error && stored && (stored.size ?? stored.metadata?.size) === attachment.size &&
-      (stored.contentType ?? stored.metadata?.mimetype) === attachment.type;
-  }));
-  if (storedFiles.some((valid) => !valid))
-    return { body, error: "Файл недоступен или его данные изменились. Прикрепите файл заново." };
-  const { data, error } = await supabase
-    .from("messages")
-    .insert({
-      conversation_id: conversationId, sender_id: user.id, body,
-      attachments,
-    })
-    .select("id")
-    .single();
-  if (error)
-    return { body, error: "Не удалось отправить сообщение. Попробуйте ещё раз." };
+  const { data, error, status } = await supabase.rpc("send_message", {
+    p_conversation_id: conversationId,
+    p_client_nonce: nonce,
+    p_body: body,
+    p_attachments: attachments,
+  });
+  if (error?.code === "42501") return { error: "Диалог или вложение недоступны." };
+  if (error?.code === "23514")
+    return { error: "Не удалось сохранить сообщение. Проверьте текст и заново прикрепите недоступные файлы.", uncertain: false };
+  if (error?.code === "23505")
+    return { error: "Этот черновик уже был отправлен с другим содержимым. Обновите диалог.", uncertain: true };
+  if (status === 0 || status === 408 || status >= 500 || (!error && !data))
+    return { error: "Не удалось подтвердить отправку. Повторите её, чтобы проверить результат.", uncertain: true };
+  if (error || !data)
+    return { error: "Не удалось отправить сообщение. Попробуйте ещё раз." };
+
   revalidatePath("/messages");
-  redirect(`/messages?conversation=${conversationId}&sent=${data.id}#message-${data.id}`);
+  return { messageId: data };
 }

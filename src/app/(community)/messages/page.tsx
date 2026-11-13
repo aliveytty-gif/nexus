@@ -118,7 +118,7 @@ export default async function MessagesPage({ searchParams }: {
               </li>; })}
             </ol> : <p className={styles.empty}>{page > 1 ? "На этой странице нет сообщений." : "Пока тихо. Напиши первое сообщение."}</p>}
             {thread.messages.some((message) => message.mediaAttachments.length) && <p className="muted small">Ссылки на файлы действуют 10 минут. Если ссылка истекла, нажми «Обновить».</p>}
-            {(isGroup || participant) && <MessageForm key={`${selected.id}-${query.sent ?? ""}`} conversationId={selected.id} />}
+            {(isGroup || participant) && <MessageForm key={`${user.id}-${selected.id}-${query.sent ?? ""}`} conversationId={selected.id} senderId={user.id} />}
           </> : <div className={styles.empty}>
             <MessagesSquare size={38} aria-hidden="true" /><h2>Здесь начинается разговор</h2>
             <p>Выбери диалог слева или напиши участнику из его профиля.</p>
