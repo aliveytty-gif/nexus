@@ -96,6 +96,7 @@ describe("Group invitations PostgreSQL consent and permissions", { concurrency: 
     legacyGroup = await asUser(ALICE, () => create([BOB, CAROL], "Existing group"));
     legacyMessage = await asUser(BOB, () => send(legacyGroup, BOB));
     await db.exec(await readFile(new URL("../supabase/migrations/202611020002_group_invitations.sql", import.meta.url), "utf8"));
+    await db.exec(await readFile(new URL("../supabase/migrations/202611130001_message_send_retry.sql", import.meta.url), "utf8"));
   });
   after(async () => { await db?.close(); });
 
@@ -374,5 +375,54 @@ describe("Group invitations PostgreSQL consent and permissions", { concurrency: 
       assert.equal((await db.query("select * from public.conversations where id = any($1::uuid[])",
         [listed.map((row) => row.conversation_id)])).rows.length, 0);
     });
+  });
+
+  it("applies send retry support without changing existing messages or legacy inserts", async () => {
+    const existing = await db.query("select client_nonce from public.messages where id = $1", [legacyMessage]);
+    assert.deepEqual(existing.rows, [{ client_nonce: null }]);
+    const legacyInsert = await asUser(ALICE, () => send(direct));
+    assert.notEqual(legacyInsert, legacyMessage);
+  });
+
+  async function sendWithNonce(conversation: string, nonce: string | null, body: string, attachments: object[] = []) {
+    return (await db.query<{ id: string }>("select public.send_message($1, $2, $3, $4) as id",
+      [conversation, nonce, body, JSON.stringify(attachments)])).rows[0].id;
+  }
+
+  it("reuses one message, preserves its payload, and lets new nonces send identical text", async () => {
+    const nonce = "aaaaaaaa-1111-4111-8111-111111111111";
+    await asUser(ALICE, async () => {
+      const first = await sendWithNonce(direct, nonce, "Repeatable");
+      assert.equal(await sendWithNonce(direct, nonce, "Repeatable"), first);
+      await assert.rejects(() => sendWithNonce(direct, nonce, "Different"), { code: "23505" });
+      assert.deepEqual((await db.query("select body from public.messages where id = $1", [first])).rows,
+        [{ body: "Repeatable" }]);
+      assert.notEqual(await sendWithNonce(direct, "bbbbbbbb-1111-4111-8111-111111111111", "Repeatable"), first);
+    });
+  });
+
+  it("scopes a nonce to sender and conversation and retains Auth and membership checks", async () => {
+    const nonce = "cccccccc-1111-4111-8111-111111111111";
+    const aliceId = await asUser(ALICE, () => sendWithNonce(direct, nonce, "Alice"));
+    const bobId = await asUser(BOB, () => sendWithNonce(direct, nonce, "Bob"));
+    const groupId = await asUser(ALICE, () => sendWithNonce(legacyGroup, nonce, "Group"));
+    assert.equal(new Set([aliceId, bobId, groupId]).size, 3);
+    await asUser(EVE, () => assert.rejects(() => sendWithNonce(direct, nonce, "Alice"), { code: "42501" }));
+    await asUser(null, () => assert.rejects(() => sendWithNonce(direct, nonce, "Alice"), { code: "42501" }), "anon");
+    await asUser(ALICE, () => assert.rejects(() => sendWithNonce(direct, null, "Alice"), { code: "22023" }));
+  });
+
+  it("keeps uploaded files attached to the original send and can retry after validation failure", async () => {
+    const nonce = "dddddddd-1111-4111-8111-111111111111";
+    const path = `${direct}/${ALICE}/${FILE}`;
+    const attachments = [{ path, name: "photo.jpg", type: "image/jpeg", size: 13 }];
+    await asUser(ALICE, () => assert.rejects(() => sendWithNonce(direct, nonce, "", attachments), { code: "23514" }));
+    await db.query("insert into storage.objects (bucket_id, name, metadata) values ('message-files', $1, $2)",
+      [path, JSON.stringify({ mimetype: "image/jpeg", size: 13 })]);
+    const original = await asUser(ALICE, () => sendWithNonce(direct, nonce, "", attachments));
+    await db.query("delete from storage.objects where bucket_id = 'message-files' and name = $1", [path]);
+    assert.equal(await asUser(ALICE, () => sendWithNonce(direct, nonce, "", attachments)), original);
+    assert.deepEqual((await db.query("select attachments from public.messages where id = $1", [original])).rows,
+      [{ attachments }]);
   });
 });

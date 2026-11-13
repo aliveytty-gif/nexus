@@ -368,6 +368,7 @@ export type Database = {
           conversation_id: string;
           sender_id: string;
           body: string;
+          client_nonce: string | null;
           attachment_path: string | null;
           attachment_name: string | null;
           attachment_type: string | null;
@@ -377,6 +378,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          client_nonce?: string | null;
           conversation_id: string;
           sender_id: string;
           body: string;
@@ -389,6 +391,7 @@ export type Database = {
         };
         Update: {
           id?: string;
+          client_nonce?: string | null;
           conversation_id?: string;
           sender_id?: string;
           body?: string;
@@ -488,6 +491,10 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
+      send_message: {
+        Args: { p_conversation_id: string; p_client_nonce: string; p_body: string; p_attachments: Json };
+        Returns: string;
+      };
       reserve_ai_request: {
         Args: { p_user_limit?: number; p_global_limit?: number; p_request_id?: string | null };
         Returns: Json;

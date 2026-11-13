@@ -11,7 +11,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { AttachmentPicker } from "@/components/ui/attachment-picker";
 import { IMAGE_ACCEPT, uploadAttachment, validateImage, type MessageAttachment } from "@/lib/storage";
 import { createGroupAction, leaveGroupAction, manageGroupMemberAction, markConversationReadAction, searchGroupPeopleAction,
-  respondToGroupInvitationAction, sendMessageAction, startConversationAction, updateGroupAction, type GroupFormState, type GroupPerson } from "./actions";
+  respondToGroupInvitationAction, sendMessageAction, startConversationAction, updateGroupAction, type GroupFormState, type GroupPerson, type MessageFormState } from "./actions";
 import styles from "./messages.module.css";
 
 export function StartConversationButton({ userId }: { userId: string }) {
@@ -26,25 +26,42 @@ export function StartConversationButton({ userId }: { userId: string }) {
   );
 }
 
-export function MessageForm({ conversationId }: { conversationId: string }) {
-  const [state, action, pending] = useActionState(sendMessageAction.bind(null, conversationId), {});
+export function MessageForm({ conversationId, senderId }: { conversationId: string; senderId: string }) {
+  const router = useRouter();
+  const nonce = useRef<string | null>(null);
+  const [body, setBody] = useState("");
+  const [state, action, pending] = useActionState<MessageFormState, FormData>(async (previous, formData) => {
+    if (previous.messageId) return previous;
+    nonce.current ??= crypto.randomUUID();
+    let result: MessageFormState;
+    try {
+      result = await sendMessageAction(conversationId, nonce.current, senderId, formData);
+    } catch {
+      return { error: "Не удалось подтвердить отправку. Повторите её, чтобы проверить результат.", uncertain: true };
+    }
+    if (result.messageId) {
+      router.push(`/messages?conversation=${conversationId}&sent=${result.messageId}#message-${result.messageId}`);
+    }
+    return { ...result, uncertain: !result.messageId && (result.uncertain ?? previous.uncertain) };
+  }, {});
+  const locked = pending || Boolean(state.uncertain || state.messageId);
   const [uploads, setUploads] = useState<{ attachments: MessageAttachment[]; busy: boolean }>({ attachments: [], busy: false });
   const onChange = useCallback((attachments: MessageAttachment[], busy: boolean) => setUploads({ attachments, busy }), []);
   return (
     <form action={action} className="form-stack" aria-busy={pending || uploads.busy}
-      onSubmit={(event) => { if (uploads.busy) event.preventDefault(); }}>
+      onSubmit={(event) => { if (pending || uploads.busy || state.messageId) event.preventDefault(); }}>
       <div className="field">
         <label className="label" htmlFor="message-body">Сообщение</label>
         <textarea id="message-body" name="body" className="input" rows={3}
-          placeholder="Начни разговор…" required={!uploads.attachments.length} disabled={pending} maxLength={2000}
-          defaultValue={state.body} aria-describedby="message-limit" />
+          placeholder="Начни разговор…" required={!uploads.attachments.length} readOnly={locked} maxLength={2000}
+          value={body} onChange={(event) => setBody(event.target.value)} aria-describedby="message-limit" />
         <span id="message-limit" className="muted small">До 2 000 символов. Вложения можно отправить без текста.</span>
       </div>
       <input type="hidden" name="attachments" value={JSON.stringify(uploads.attachments)} />
-      <AttachmentPicker scope="message" conversationId={conversationId} disabled={pending} onChange={onChange} />
+      <AttachmentPicker scope="message" conversationId={conversationId} disabled={locked} onChange={onChange} />
       {state.error && <Notice tone="error">{state.error}</Notice>}
-      <div><SubmitButton pendingText="Отправляем…" disabled={uploads.busy}>
-        <Send size={16} aria-hidden="true" /> Отправить
+      <div><SubmitButton pendingText="Отправляем…" disabled={uploads.busy || Boolean(state.messageId)}>
+        <Send size={16} aria-hidden="true" /> {state.uncertain ? "Повторить отправку" : "Отправить"}
       </SubmitButton></div>
     </form>
   );
