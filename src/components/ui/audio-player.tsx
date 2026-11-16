@@ -4,7 +4,10 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { LoaderCircle, Pause, Play, X } from "lucide-react";
 import styles from "@/features/messages/messages.module.css";
 
-type AudioPlayerProps = { src: string; title: string; hideDownload?: boolean };
+type AudioPlayerProps = {
+  src: string; title: string; hideDownload?: boolean;
+  renewSource?: () => Promise<string | null>;
+};
 type PlaybackState = {
   playing: boolean; busy: boolean; metadataLoading: boolean;
   duration: number; currentTime: number; error: string | null;
@@ -34,6 +37,9 @@ export function PersistentAudioProvider({ children }: { children: ReactNode }) {
   const trackRef = useRef<AudioTrack | null>(null);
   const playRequest = useRef(0);
   const pendingPlay = useRef(false);
+  const sourceFailed = useRef(false);
+  const lastPosition = useRef(0);
+  const restorePosition = useRef<number | null>(null);
   const [track, setTrack] = useState<AudioTrack | null>(null);
   const [state, setState] = useState<PlaybackState>(idleState);
 
@@ -41,6 +47,9 @@ export function PersistentAudioProvider({ children }: { children: ReactNode }) {
     playRequest.current += 1;
     pendingPlay.current = false;
     trackRef.current = null;
+    sourceFailed.current = false;
+    lastPosition.current = 0;
+    restorePosition.current = null;
     const audio = audioRef.current;
     if (audio) {
       audio.pause();
@@ -82,8 +91,10 @@ export function PersistentAudioProvider({ children }: { children: ReactNode }) {
   async function toggle(nextTrack: AudioTrack) {
     const audio = audioRef.current;
     if (!audio) return;
-    const sameTrack = trackRef.current?.key === nextTrack.key;
-    if (sameTrack && (!audio.paused || pendingPlay.current)) {
+    const currentTrack = trackRef.current;
+    const sameTrack = currentTrack?.key === nextTrack.key;
+    const failed = sourceFailed.current || Boolean(audio.error);
+    if (sameTrack && ((!audio.paused && !failed) || pendingPlay.current)) {
       playRequest.current += 1;
       pendingPlay.current = false;
       audio.pause();
@@ -92,15 +103,45 @@ export function PersistentAudioProvider({ children }: { children: ReactNode }) {
     }
     const request = ++playRequest.current;
     pendingPlay.current = true;
-    if (!sameTrack || audio.error) {
+    let selected = sameTrack && currentTrack ? currentTrack : nextTrack;
+    if (!sameTrack) {
+      sourceFailed.current = false;
+      lastPosition.current = 0;
+      restorePosition.current = null;
+    }
+    trackRef.current = selected;
+    setTrack(selected);
+    setState((previous) => sameTrack
+      ? { ...previous, busy: true, error: null }
+      : { ...idleState, busy: true, metadataLoading: true });
+
+    if (sameTrack && failed && selected.renewSource) {
+      const fresh = await selected.renewSource();
+      if (request !== playRequest.current) return;
+      if (!fresh) {
+        pendingPlay.current = false;
+        setState((previous) => ({ ...previous, busy: false, playing: false, metadataLoading: false,
+          error: "Ссылка на аудио недоступна. Попробуйте воспроизвести ещё раз." }));
+        return;
+      }
+      sourceFailed.current = false;
+      restorePosition.current = lastPosition.current;
+      selected = { ...selected, src: fresh };
+      trackRef.current = selected;
+      setTrack(selected);
+      audio.src = fresh;
+      setState((previous) => ({ ...previous, busy: true, metadataLoading: true }));
+    } else if (!sameTrack || failed) {
+      sourceFailed.current = false;
       audio.pause();
       audio.src = nextTrack.src;
-      setState({ ...idleState, busy: true, metadataLoading: true });
-    } else {
-      setState((previous) => ({ ...previous, busy: true, error: null }));
+      if (sameTrack) {
+        selected = nextTrack;
+        trackRef.current = selected;
+        setTrack(selected);
+        setState({ ...idleState, busy: true, metadataLoading: true });
+      }
     }
-    trackRef.current = nextTrack;
-    setTrack(nextTrack);
     try {
       await audio.play();
       if (request === playRequest.current) pendingPlay.current = false;
@@ -109,7 +150,9 @@ export function PersistentAudioProvider({ children }: { children: ReactNode }) {
       pendingPlay.current = false;
       const aborted = reason instanceof DOMException && reason.name === "AbortError";
       setState((previous) => ({ ...previous, busy: false, playing: false,
-        error: aborted ? null : "Не удалось воспроизвести аудио. Обнови страницу и попробуй снова." }));
+        error: aborted ? null : selected.renewSource
+          ? "Не удалось воспроизвести аудио. Нажмите «Воспроизвести» ещё раз."
+          : "Не удалось воспроизвести аудио. Обнови страницу и попробуй снова." }));
     }
   }
 
@@ -117,15 +160,21 @@ export function PersistentAudioProvider({ children }: { children: ReactNode }) {
     const audio = audioRef.current;
     if (!audio || !Number.isFinite(audio.duration) || audio.duration <= 0) return;
     audio.currentTime = Math.min(audio.duration, Math.max(0, nextTime));
+    lastPosition.current = audio.currentTime;
     setState((previous) => ({ ...previous, currentTime: audio.currentTime }));
   }
 
   function updateMetadata() {
     const audio = audioRef.current;
-    if (!audio || !trackRef.current) return;
+    if (!audio || !trackRef.current || audio.readyState < 1) return;
+    const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0;
+    if (restorePosition.current !== null && duration) {
+      audio.currentTime = Math.min(restorePosition.current, duration);
+      restorePosition.current = null;
+    }
+    lastPosition.current = audio.currentTime;
     setState((previous) => ({ ...previous,
-      duration: Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0,
-      currentTime: audio.currentTime, metadataLoading: false }));
+      duration, currentTime: audio.currentTime, metadataLoading: false }));
   }
 
   return <AudioContext.Provider value={{ track, state, toggle, seek }}>
@@ -138,7 +187,9 @@ export function PersistentAudioProvider({ children }: { children: ReactNode }) {
         onLoadedMetadata={updateMetadata} onDurationChange={updateMetadata}
         onTimeUpdate={(event) => {
           const currentTime = event.currentTarget.currentTime;
-          if (trackRef.current) setState((previous) => ({ ...previous, currentTime }));
+          if (!trackRef.current || restorePosition.current !== null || event.currentTarget.error) return;
+          lastPosition.current = currentTime;
+          setState((previous) => ({ ...previous, currentTime }));
         }}
         onPlaying={() => { pendingPlay.current = false; setState((previous) => ({ ...previous, playing: true, busy: false })); }}
         onWaiting={() => { if (trackRef.current) setState((previous) => ({ ...previous, busy: true })); }}
@@ -146,9 +197,12 @@ export function PersistentAudioProvider({ children }: { children: ReactNode }) {
         onEnded={() => setState((previous) => ({ ...previous, playing: false, busy: false }))}
         onError={() => {
           if (!trackRef.current) return;
+          sourceFailed.current = true;
           pendingPlay.current = false;
           setState((previous) => ({ ...previous, playing: false, busy: false, metadataLoading: false,
-            error: "Аудио недоступно. Обнови страницу и попробуй снова." }));
+            error: trackRef.current?.renewSource
+              ? "Аудио недоступно. Нажмите «Воспроизвести», чтобы обновить ссылку."
+              : "Аудио недоступно. Обнови страницу и попробуй снова." }));
         }} />
       {track && <div className={styles.persistentAudio} data-persistent-audio role="group" aria-label="Текущий аудиотрек">
         <AudioControls title={track.title} state={state} onToggle={() => void toggle(track)} onSeek={seek} />

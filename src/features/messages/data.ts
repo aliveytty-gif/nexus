@@ -1,7 +1,22 @@
 import "server-only";
 
 import { parseAttachments } from "@/lib/storage";
+import type { Database } from "@/types/database";
 import { createClient } from "@/lib/supabase/server";
+
+export const MESSAGE_LINK_TTL = 600;
+
+export function readMessageAttachments(message: Pick<Database["public"]["Tables"]["messages"]["Row"],
+  "attachments" | "attachment_path" | "attachment_name" | "attachment_type" | "attachment_size">) {
+  const attachments = parseAttachments(message.attachments);
+  // Older deployments used a single file.
+  if (!attachments.length && message.attachment_path)
+    attachments.push({
+      path: message.attachment_path, name: message.attachment_name ?? "Файл",
+      type: message.attachment_type ?? "", size: message.attachment_size ?? 0,
+    });
+  return attachments;
+}
 
 export async function getConversations() {
   const supabase = await createClient();
@@ -9,7 +24,7 @@ export async function getConversations() {
   const { data, error } = await supabase.rpc("get_conversation_summaries");
   if (error) throw new Error("Не удалось загрузить диалоги.");
   const paths = [...new Set(data.flatMap((conversation) => conversation.avatar_path ? [conversation.avatar_path] : []))];
-  const signed = paths.length ? await supabase.storage.from("message-files").createSignedUrls(paths, 600) : null;
+  const signed = paths.length ? await supabase.storage.from("message-files").createSignedUrls(paths, MESSAGE_LINK_TTL) : null;
   const urls = new Map(signed?.data?.map((file) => [file.path, file.signedUrl]));
   return data.map((conversation) => ({
     id: conversation.id, kind: conversation.kind, title: conversation.title,
@@ -61,17 +76,13 @@ export async function getConversationMessages(conversationId: string, page: numb
     .order("id", { ascending: false })
     .range(start, start + pageSize);
   if (error) throw new Error("Не удалось загрузить сообщения.");
-  const messages = data.slice(0, pageSize).reverse().map((message) => {
-    const attachments = parseAttachments(message.attachments);
-    // Older deployments used a single file; render it through the same media UI.
-    if (!attachments.length && message.attachment_path)
-      attachments.push({ path: message.attachment_path, name: message.attachment_name ?? "Файл",
-        type: message.attachment_type ?? "", size: message.attachment_size ?? 0 });
-    return { ...message, attachments };
-  });
+  const messages = data.slice(0, pageSize).reverse().map((message) => ({
+    ...message,
+    attachments: readMessageAttachments(message),
+  }));
   // Sign only paths obtained through message RLS; Storage checks membership again.
   const paths = [...new Set(messages.flatMap((message) => message.attachments.map((file) => file.path)))];
-  const signed = paths.length ? await supabase.storage.from("message-files").createSignedUrls(paths, 600) : null;
+  const signed = paths.length ? await supabase.storage.from("message-files").createSignedUrls(paths, MESSAGE_LINK_TTL) : null;
   const urls = new Map(signed?.data?.map((file) => [file.path, file.signedUrl]));
   return {
     messages: messages.map((message) => ({ ...message, mediaAttachments: message.attachments.map((file) => {

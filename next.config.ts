@@ -19,10 +19,10 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
         ],
       },
-      {
-        source: "/auth/recovery",
+      ...["/auth/recovery", "/api/messages/attachments/:path*"].map((source) => ({
+        source,
         headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
-      },
+      })),
     ];
   },
 };
