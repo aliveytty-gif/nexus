@@ -112,12 +112,13 @@ export default async function MessagesPage({ searchParams }: {
                 </div>}
                 <span className="sr-only">{authorName}: </span>
                 {message.body && <p>{message.body}</p>}
-                {message.mediaAttachments.map((file) => <MessageAttachment key={file.path}
-                  name={file.name} type={file.type} size={file.size} url={file.url} downloadUrl={file.downloadUrl} />)}
+                {message.mediaAttachments.map((file, index) => <MessageAttachment key={file.path}
+                  name={file.name} type={file.type} size={file.size} url={file.url} downloadUrl={file.downloadUrl}
+                  refreshUrl={`/api/messages/attachments/${message.id}/${index}`} />)}
                 <time dateTime={message.created_at}>{formatDate(message.created_at)}</time>
               </li>; })}
             </ol> : <p className={styles.empty}>{page > 1 ? "На этой странице нет сообщений." : "Пока тихо. Напиши первое сообщение."}</p>}
-            {thread.messages.some((message) => message.mediaAttachments.length) && <p className="muted small">Ссылки на файлы действуют 10 минут. Если ссылка истекла, нажми «Обновить».</p>}
+            {thread.messages.some((message) => message.mediaAttachments.length) && <p className="muted small">Если медиа не загрузилось, можно обновить его ссылку прямо в сообщении.</p>}
             {(isGroup || participant) && <MessageForm key={`${user.id}-${selected.id}-${query.sent ?? ""}`} conversationId={selected.id} senderId={user.id} />}
           </> : <div className={styles.empty}>
             <MessagesSquare size={38} aria-hidden="true" /><h2>Здесь начинается разговор</h2>
