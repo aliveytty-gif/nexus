@@ -5,6 +5,7 @@ import { readAgentConfig } from "../src/features/ai/agent/config.ts";
 import { newUsage, resolveModels, runAgent } from "../src/features/ai/agent/engine.ts";
 import type { AgentMode, Source } from "../src/features/ai/agent/contracts.ts";
 import type { Database } from "../src/types/database.ts";
+import { searchWeb } from "../src/features/ai/agent/web.ts";
 
 const config = readAgentConfig(process.env);
 const cases = {
@@ -27,9 +28,15 @@ const cases = {
 } satisfies Record<string, { question: string; mode: AgentMode }>;
 const check = process.argv[2] || "calculator";
 
-try {
+async function main() {
+  if (check === "search") {
+    const sources = await searchWeb(config, "latest NASA science news", "pw", AbortSignal.timeout(15000));
+    if (!sources.length) throw new Error("Search returned no valid public sources.");
+    console.log(JSON.stringify({ check, provider: config.searchProvider, sources: sources.map(({ title, url }) => ({ title, url })) }));
+    return;
+  }
   if (!config.ready || !config.freeOnly) throw new Error("Live check requires configured free-only AI.");
-  if (!Object.hasOwn(cases, check)) throw new Error("Use calculator, python, plan, or page.");
+  if (!Object.hasOwn(cases, check)) throw new Error("Use calculator, python, plan, page, or search.");
   const { question, mode } = cases[check as keyof typeof cases];
   const signal = AbortSignal.timeout(65000);
   const models = await resolveModels(config, mode !== "quick", signal);
@@ -50,11 +57,13 @@ try {
     throw new Error("Tool/result not verified.");
   if (check === "page" && (!events.includes("readWebPage:complete") || sources.length === 0))
     throw new Error("Page reading not verified.");
-} catch (error) {
+}
+
+main().catch((error: unknown) => {
   console.error(JSON.stringify({
     check,
     code: error && typeof error === "object" && "code" in error ? error.code : "live_check_failed",
     name: error instanceof Error ? error.name : "error",
   }));
   process.exitCode = 1;
-}
+});

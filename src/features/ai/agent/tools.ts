@@ -107,7 +107,7 @@ export function createAgentTools(ctx: ToolContext): ToolSet {
       execute: ({ text }) => action("createDraftPost", "Подготовка черновика", () => ({ text, published: false, instruction: "Покажи черновик пользователю. Для публикации он должен открыть форму NEXUS и подтвердить её сам." })), }),
   };
   if (ctx.config.searchEnabled) {
-    tools.searchWeb = tool({ description: "Настоящий поиск Brave. Для прошедшей недели укажи freshness=pw. Snippets не равны прочитанным статьям. Не добавляй личные сведения из истории в поисковый запрос.", inputSchema: querySchema,
+    tools.searchWeb = tool({ description: "Поиск в интернете. Для прошедшей недели укажи freshness=pw. Выдержка из выдачи не равна прочитанной статье. Не добавляй личные сведения из истории в поисковый запрос.", inputSchema: querySchema,
       execute: ({ query, freshness }) => action("searchWeb", `Поиск: ${query}`, () => search(query, freshness)), });
     tools.researchTopic = tool({ description: "Исследовать тему через 2–3 разных поисковых запроса. Возвращает источники и их независимость; утверждения ещё требуют чтения и сопоставления агентом.",
       inputSchema: z.object({ topic: z.string().min(2).max(160), queries: z.array(z.string().trim().min(2).max(200)).min(2).max(3), freshness: z.enum(["pw", "pm", "py"]).optional() }).strict(),

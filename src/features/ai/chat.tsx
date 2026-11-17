@@ -20,7 +20,7 @@ async function api<T>(url: string, options?: RequestInit): Promise<T> {
   return data as T;
 }
 
-export function AiChat({ enabled, dailyLimit, searchEnabled, providerLabel }: { enabled: boolean; dailyLimit: number; searchEnabled: boolean; providerLabel: string }) {
+export function AiChat({ enabled, dailyLimit, searchEnabled, searchLabel, providerLabel }: { enabled: boolean; dailyLimit: number; searchEnabled: boolean; searchLabel: string; providerLabel: string }) {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [turns, setTurns] = useState<AiTurn[]>([]);
@@ -227,7 +227,7 @@ export function AiChat({ enabled, dailyLimit, searchEnabled, providerLabel }: { 
           {error && <p className={styles.error} role="alert">{error}</p>}
           <div className={styles.modes} role="group" aria-label="Режим ответа">{modes.map(([key, label]) => <button type="button" key={key} aria-pressed={mode === key} disabled={pending} onClick={() => setMode(key)}>{label}</button>)}</div>
           {mode === "research" && !searchEnabled && <p className={styles.footnote}>Поиск пока не подключён. Агент сможет разобрать тему и ссылки из вопроса, но не проверить свежие новости поиском.</p>}
-          {!consent && <label className={styles.consent}><input type="checkbox" checked={consent} disabled={pending} onChange={(e) => setConsent(e.target.checked)} /><span>Разрешаю передавать вопрос, контекст диалога и разрешённые данные инструментов в {providerLabel} и внешнюю AI-модель. При поиске запрос получает Brave. История сохраняется в моём аккаунте.</span></label>}
+          {!consent && <label className={styles.consent}><input type="checkbox" checked={consent} disabled={pending} onChange={(e) => setConsent(e.target.checked)} /><span>Разрешаю передавать вопрос, контекст диалога и разрешённые данные инструментов в {providerLabel} и внешнюю AI-модель. {searchEnabled && `При поиске запрос получает ${searchLabel}. `}История сохраняется в моём аккаунте.</span></label>}
           <label className={styles.consent}><input type="checkbox" checked={nexusContext} disabled={pending} onChange={(e) => setNexusContext(e.target.checked)} /><span>Разрешить AI использовать мой учебный профиль, список моих сообществ и общую ленту NEXUS для этого запроса.</span></label>
           <label className="sr-only" htmlFor="ai-question">Твой вопрос</label><textarea id="ai-question" ref={input} rows={3} maxLength={4000} value={draft} disabled={pending || loading || !enabled} placeholder="Задай вопрос…" onChange={(e) => setDraft(e.target.value)} />
           <div className={styles.composerFooter}><span>{draft.length} / 4000</span>{pending ? <button type="button" className="button button-secondary" onClick={() => controller.current?.abort()}><Square size={15} /> Остановить</button> : <button type="submit" className="button button-primary" disabled={!enabled || !consent || !draft.trim() || loading || remaining === 0}><Send size={16} /> Отправить</button>}</div>

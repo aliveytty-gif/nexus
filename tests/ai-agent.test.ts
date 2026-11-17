@@ -64,6 +64,28 @@ describe("web safety and real API adapter contracts", () => {
     assert.equal(result.length,1); assert.equal(result[0].snippet,"Fact"); assert.ok(!JSON.stringify(result).includes("SEARCH_SECRET"));
     await assert.rejects(searchWeb(config,"query",undefined,signal,async()=>{throw new Error("must not call");}),/не подключён/);
   });
+  it("sends bounded Firecrawl search requests without scraping and maps usable results", async () => {
+    const firecrawl = readAgentConfig({ WEB_SEARCH_PROVIDER: "firecrawl", WEB_SEARCH_API_KEY: "synthetic-key" });
+    assert.equal(firecrawl.searchPrice, 0);
+    const sources = await searchWeb(firecrawl, "новости науки", "pw", signal, async (url, options) => {
+      assert.equal(url, "https://api.firecrawl.dev/v2/search");
+      assert.equal(options?.method, "POST");
+      assert.equal(options?.redirect, "error");
+      assert.equal(new Headers(options?.headers).get("Authorization"), "Bearer synthetic-key");
+      const request = JSON.parse(String(options?.body));
+      assert.equal(request.tbs, "qdr:w");
+      assert.equal(request.safe, true);
+      assert.equal(request.scrapeOptions, undefined);
+      return Response.json({ success: true, data: { web: [
+        { url: "https://example.com/article", title: "Article", description: "<b>Новая статья</b>" },
+        { url: "http://127.0.0.1/secret", title: "Unsafe" },
+      ] } });
+    });
+    assert.equal(sources.length, 1);
+    assert.equal(sources[0].snippet, "Новая статья");
+    await assert.rejects(searchWeb(firecrawl, "news", undefined, signal, async () =>
+      Response.json({ success: false, error: "synthetic private diagnostic" })), /не вернул результаты/);
+  });
 });
 
 describe("configuration, budgets and tools", () => {

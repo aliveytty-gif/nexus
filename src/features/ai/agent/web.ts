@@ -102,14 +102,29 @@ export async function readWebPage(value: string, signal: AbortSignal, fetchPage 
 
 export async function searchWeb(config: AgentConfig, query: string, freshness: "pw" | "pm" | "py" | undefined, signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<Omit<Source, "id">[]> {
   if (!config.searchEnabled) throw new AiError("search_unavailable", "Веб-поиск не подключён. Актуальные сведения не проверены.");
-  const url = new URL("https://api.search.brave.com/res/v1/web/search");
-  url.searchParams.set("q", query); url.searchParams.set("count", "5"); url.searchParams.set("safesearch", "moderate");
-  if (freshness) url.searchParams.set("freshness", freshness);
-  const response = await fetcher(url, { headers: { "X-Subscription-Token": config.searchKey, Accept: "application/json" },
-    cache: "no-store", redirect: "error", signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]) });
+  const deadline = AbortSignal.any([signal, AbortSignal.timeout(10000)]);
+  const options = { cache: "no-store", redirect: "error", signal: deadline } as const;
+  let response: Response;
+  if (config.searchProvider === "firecrawl") {
+    const periods = { pw: "qdr:w", pm: "qdr:m", py: "qdr:y" };
+    response = await fetcher("https://api.firecrawl.dev/v2/search", {
+      ...options, method: "POST",
+      headers: { Authorization: `Bearer ${config.searchKey}`, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ query, limit: 5, sources: [{ type: "web" }], safe: true, timeout: 8500,
+        ...(freshness ? { tbs: periods[freshness] } : {}) }),
+    });
+  } else {
+    const url = new URL("https://api.search.brave.com/res/v1/web/search");
+    url.searchParams.set("q", query); url.searchParams.set("count", "5"); url.searchParams.set("safesearch", "moderate");
+    if (freshness) url.searchParams.set("freshness", freshness);
+    response = await fetcher(url, { ...options, headers: { "X-Subscription-Token": config.searchKey, Accept: "application/json" } });
+  }
   if (!response.ok) throw new AiError("search_unavailable", "Поисковый сервис сейчас недоступен. Свежие данные не получены.");
-  const data = await boundedJson(response, 512000) as { web?: { results?: unknown[] } };
-  return (Array.isArray(data?.web?.results) ? data.web.results : []).slice(0, 5).flatMap((raw) => {
+  const data = await boundedJson(response, 512000) as { success?: boolean; data?: { web?: unknown[] }; web?: { results?: unknown[] } };
+  if (config.searchProvider === "firecrawl" && data?.success !== true)
+    throw new AiError("search_unavailable", "Firecrawl не вернул результаты поиска.");
+  const results = config.searchProvider === "firecrawl" ? data?.data?.web : data?.web?.results;
+  return (Array.isArray(results) ? results : []).slice(0, 5).flatMap((raw) => {
     const item = raw as Record<string, unknown>;
     if (!item || typeof item.url !== "string" || typeof item.title !== "string") return [];
     try { return [{ url: publicUrl(item.url).href, title: item.title.slice(0, 240),

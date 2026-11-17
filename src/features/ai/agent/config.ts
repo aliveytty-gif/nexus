@@ -29,6 +29,8 @@ export function readAgentConfig(env: Record<string, string | undefined>) {
   const outputPrice = number(env.AI_OUTPUT_PRICE_PER_MILLION, -1, -1, 500);
   const priced = inputPrice >= 0 && outputPrice >= 0;
   const freeOnly = !paid;
+  const searchProvider = env.WEB_SEARCH_PROVIDER === "firecrawl" ? "firecrawl"
+    : env.WEB_SEARCH_PROVIDER === "brave" ? "brave" : null;
   return {
     enabled: env.AI_ENABLED === "true", provider, apiKey: key, baseUrl, model,
     fallbackModel: env.AI_FALLBACK_MODEL?.trim() || (provider === "openrouter" ? "openrouter/free" : ""),
@@ -41,9 +43,10 @@ export function readAgentConfig(env: Record<string, string | undefined>) {
     timeoutMs: integer(env.AI_REQUEST_TIMEOUT, 65000, 5000, 70000),
     reasoning: ["low", "medium", "high"].includes(env.AI_REASONING_EFFORT || "") ? env.AI_REASONING_EFFORT : undefined,
     reasoningSupported: env.AI_REASONING_SUPPORTED === "true",
-    searchEnabled: env.WEB_SEARCH_PROVIDER === "brave" && Boolean(env.WEB_SEARCH_API_KEY?.trim()),
+    searchProvider,
+    searchEnabled: searchProvider !== null && Boolean(env.WEB_SEARCH_API_KEY?.trim()),
     searchKey: env.WEB_SEARCH_API_KEY?.trim() || "",
-    searchPrice: number(env.WEB_SEARCH_COST_PER_REQUEST, 0.005, 0, 1),
+    searchPrice: number(env.WEB_SEARCH_COST_PER_REQUEST, searchProvider === "firecrawl" ? 0 : 0.005, 0, 1),
     maxSearchCalls: integer(env.AI_MAX_SEARCH_CALLS, 3, 0, 5),
     maxSearchCost: number(env.AI_MAX_SEARCH_COST, 0.015, 0, 0.05),
     disabledTools: new Set((env.AI_DISABLED_TOOLS || "").split(",").map((v) => v.trim()).filter(Boolean)),
