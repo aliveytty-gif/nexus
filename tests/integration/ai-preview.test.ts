@@ -37,7 +37,7 @@ function safeStreamFailure(events: AgentEvent[]) {
   return safeCode ? `AI stream error: ${safeCode}` : "AI stream ended without a saved answer";
 }
 
-test("isolated NEXUS application, Supabase Auth and real model end to end", {
+test("isolated NEXUS application, Supabase Auth and configured model end to end", {
   skip: process.env.NEXUS_AI_PREVIEW_RUN !== "1" && "Set NEXUS_AI_PREVIEW_RUN=1 to use the dedicated test project",
   timeout: 220_000,
 }, async (t) => {
@@ -57,7 +57,7 @@ test("isolated NEXUS application, Supabase Auth and real model end to end", {
 
   async function account() {
     const email = `nexus-ai-e2e-${randomUUID()}@example.com`;
-    const password = `Aa1!-${randomUUID()}-${randomUUID()}`;
+    const password = `Aa1!-${randomUUID()}`;
     const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
     assert.ok(!error && data.user, `Disposable test account was not created (${error?.code ?? "unknown"})`);
     const userId = data.user.id;
@@ -169,7 +169,7 @@ test("isolated NEXUS application, Supabase Auth and real model end to end", {
     assert.ok(solved.done.usage.calls >= 2, "Expected multi-step execution");
     assert.equal(quickAnswer.done.usage.calls, 1);
     assert.equal(quickAnswer.done.usage.toolCalls, 0);
-    t.diagnostic("Concurrent real model completions passed: Solve used calculate with result 400; Quick used one model call");
+    t.diagnostic("Concurrent completions passed: Solve used calculate with result 400; Quick used one model call");
 
     await Promise.all([history(a.cookie, solve, solved.done), history(b.cookie, quick, quickAnswer.done)]);
     const replay = await stream(a.cookie, solve);
