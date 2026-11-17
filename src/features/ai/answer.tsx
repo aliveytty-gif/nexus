@@ -4,7 +4,10 @@ import { Children, isValidElement, memo, useEffect, useMemo, useState, type Reac
 import { Check, Copy } from "lucide-react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import { createLowlight } from "lowlight";
+import { safeSourceUrl } from "./agent/contracts";
 import javascript from "highlight.js/lib/languages/javascript";
 import typescript from "highlight.js/lib/languages/typescript";
 import python from "highlight.js/lib/languages/python";
@@ -35,14 +38,7 @@ const languages: Record<string, { grammar: string; label: string }> = {
   sql: { grammar: "sql", label: "SQL" },
 };
 
-function safeUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.href : "";
-  } catch {
-    return "";
-  }
-}
+const safeUrl = safeSourceUrl;
 
 // Lowlight produces an AST; only escaped text and syntax spans reach React.
 function renderToken(node: unknown, key: number): ReactNode {
@@ -122,10 +118,19 @@ const markdownComponents: Components = {
   table: ({ children }) => <div className={styles.tableScroll} role="region" tabIndex={0} aria-label="Таблица из ответа AI"><table>{children}</table></div>,
 };
 
-const markdownPlugins = [remarkGfm];
+const markdownPlugins = [remarkGfm, remarkMath];
 
-export const AiAnswer = memo(function AiAnswer({ content }: { content: string }) {
+export const AiAnswer = memo(function AiAnswer({ content, sourceUrls }: { content: string; sourceUrls?: string[] }) {
+  const components = useMemo<Components>(() => sourceUrls ? {
+    ...markdownComponents,
+    a: ({ href, children }) => href && sourceUrls.includes(href) && safeUrl(href)
+      ? <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+      : <span title="Ссылка не подтверждена инструментами">{children}</span>,
+    img: ({ alt }) => <span>{alt || "Изображение"}</span>,
+  } : markdownComponents, [sourceUrls]);
   return <div className={styles.markdown}>
-    <Markdown skipHtml urlTransform={safeUrl} remarkPlugins={markdownPlugins} components={markdownComponents}>{content}</Markdown>
+    <Markdown skipHtml urlTransform={safeUrl} remarkPlugins={markdownPlugins}
+      rehypePlugins={[[rehypeKatex, { trust: false, strict: "error", maxExpand: 100, maxSize: 10, throwOnError: false }]]}
+      components={components}>{content}</Markdown>
   </div>;
 });

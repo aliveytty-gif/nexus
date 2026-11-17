@@ -17,17 +17,25 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "3.0.92",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.116.0",
+    "ai": "7.0.172",
+    "cheerio": "1.2.0",
     "highlight.js": "^11.12.0",
+    "ipaddr.js": "2.5.0",
+    "katex": "0.19.1",
     "lowlight": "^3.3.0",
     "lucide-react": "^0.577.0",
-    "next": "16.3.5",
+    "next": "16.4.6",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-markdown": "^10.1.0",
+    "rehype-katex": "7.0.1",
     "remark-gfm": "^4.0.1",
-    "server-only": "^0.0.1"
+    "remark-math": "6.0.0",
+    "server-only": "^0.0.1",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.14",
@@ -37,8 +45,11 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.39.0",
-    "eslint-config-next": "16.3.5",
+    "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "katex": "$katex"
   }
 }
