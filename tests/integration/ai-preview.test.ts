@@ -221,8 +221,13 @@ test("isolated NEXUS application, Supabase Auth and configured model end to end"
   } finally {
     const failures: string[] = [];
     for (const userId of createdUsers) {
-      const removed = await admin.auth.admin.deleteUser(userId).catch(() => null);
-      if (!removed || removed.error) failures.push(userId);
+      let removed = false;
+      for (let attempt = 0; attempt < 3 && !removed; attempt++) {
+        const result = await admin.auth.admin.deleteUser(userId).catch(() => null);
+        removed = Boolean(result && (!result.error || result.error.status === 404));
+        if (!removed && attempt < 2) await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+      }
+      if (!removed) failures.push(userId);
     }
     assert.deepEqual(failures, [], "Isolated test user cleanup failed; check these disposable IDs");
     t.diagnostic(`Deleted ${createdUsers.length} disposable users from the isolated test project`);
