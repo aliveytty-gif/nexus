@@ -45,6 +45,7 @@ test("isolated NEXUS application, Supabase Auth and configured model end to end"
   const admin = createClient<Database>(target.database, required("NEXUS_STORAGE_TEST_SERVICE_ROLE_KEY"), { auth: UNPROTECTED });
   const publishableKey = required("NEXUS_STORAGE_TEST_PUBLISHABLE_KEY");
   const bypass = target.branchPreview ? process.env.NEXUS_AI_PREVIEW_BYPASS : undefined;
+  const trustedOidc = target.branchPreview ? process.env.VERCEL_OIDC_TOKEN : undefined;
   const createdUsers: string[] = [];
 
   function appFetch(path: string, cookie?: string, init: RequestInit = {}) {
@@ -52,6 +53,7 @@ test("isolated NEXUS application, Supabase Auth and configured model end to end"
     const headers = new Headers(init.headers);
     if (cookie) headers.set("Cookie", cookie);
     if (bypass) headers.set("x-vercel-protection-bypass", bypass);
+    if (trustedOidc) headers.set("x-vercel-trusted-oidc-idp-token", trustedOidc);
     return fetch(new URL(path, target.app), { ...init, headers, redirect: "manual", signal: init.signal ?? AbortSignal.timeout(85_000) });
   }
 
