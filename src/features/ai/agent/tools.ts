@@ -112,11 +112,19 @@ export function createAgentTools(ctx: ToolContext): ToolSet {
     tools.researchTopic = tool({ description: "Исследовать тему через 2–3 разных поисковых запроса. Возвращает источники и их независимость; утверждения ещё требуют чтения и сопоставления агентом.",
       inputSchema: z.object({ topic: z.string().min(2).max(160), queries: z.array(z.string().trim().min(2).max(200)).min(2).max(3), freshness: z.enum(["pw", "pm", "py"]).optional() }).strict(),
       execute: ({ topic, queries, freshness }) => action("researchTopic", `Исследование: ${topic}`, async () => {
-        const material: Source[] = []; const errors: string[] = [];
-        for (const query of [...new Set(queries)]) {
-          try { material.push(...await search(query, freshness)); }
-          catch (error) { if (ctx.signal.aborted) throw error; errors.push(error instanceof AiError ? error.message : "Поиск не ответил."); break; }
-        }
+        const distinctQueries = [...new Set(queries)];
+        // Each search reserves its count and cost before awaiting the external API.
+        const results = await Promise.allSettled(distinctQueries.map((query) => search(query, freshness)));
+        ctx.signal.throwIfAborted();
+        const material: Source[] = [];
+        const errors: { query: string; code: string; message: string }[] = [];
+        results.forEach((result, index) => {
+          if (result.status === "fulfilled") material.push(...result.value);
+          else errors.push({ query: distinctQueries[index],
+            code: result.reason instanceof AiError ? result.reason.code : "search_unavailable",
+            message: result.reason instanceof AiError ? result.reason.message : "Поиск не ответил.",
+          });
+        });
         const sources = [...new Map(material.map((s) => [s.url, s])).values()];
         return { topic, sources, independentDomains: [...new Set(sources.map((s) => new URL(s.url).hostname))], errors,
           verification: "Это поисковый материал. Прочитай ключевые страницы, сопоставь утверждения и выдели неопределённость. Само число доменов не подтверждает факты." };

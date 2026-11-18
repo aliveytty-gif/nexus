@@ -16,7 +16,7 @@ describe("AI agent history, RLS and atomic quotas", { concurrency: false }, () =
       grant usage on schema auth to anon,authenticated; grant execute on function auth.uid() to anon,authenticated;
       alter default privileges in schema public grant all on tables to anon,authenticated;
       alter default privileges in schema public grant all on functions to anon,authenticated;`);
-    for (const name of ["202610220001_ai_quotas.sql", "202611130002_ai_agent.sql"])
+    for (const name of ["202610220001_ai_quotas.sql", "202611130002_ai_agent.sql", "202611170001_ai_quota_ceiling.sql"])
       await db.exec(await readFile(new URL(`../supabase/migrations/${name}`, import.meta.url), "utf8"));
   });
   after(async () => db?.close());
@@ -87,6 +87,18 @@ describe("AI agent history, RLS and atomic quotas", { concurrency: false }, () =
     await db.exec("update public.ai_quota_settings set user_limit=50,global_limit=50"); await begin();
     for(let i=0;i<8;i++) assert.equal((await step()).allowed,true);
     assert.equal((await step()).code,"step_limit");
+  });
+  it("allows a confirmed higher account tier without removing app or per-minute limits", async () => {
+    await assert.rejects(db.exec("update public.ai_quota_settings set global_limit=1001"), /check constraint/);
+    await db.exec(`update public.ai_quota_settings set global_limit=1000,user_limit=80;
+      update public.ai_global_usage set attempts=999;`);
+    await begin();
+    const reserve = async () => as(A, async () => (await db.query<{ v: { allowed: boolean; code?: string; global_remaining: number } }>(
+      "select public.reserve_ai_agent_step($1,$2,100,99999) v", [Q, R])).rows[0].v);
+    assert.deepEqual(await reserve().then(({ allowed, global_remaining }) => ({ allowed, global_remaining })), { allowed: true, global_remaining: 0 });
+    assert.equal((await reserve()).code, "global_limit");
+    await db.exec("update public.ai_global_usage set attempts=990,recent_attempts=array_fill(clock_timestamp(), ARRAY[20]);");
+    assert.equal((await reserve()).code, "rate_limit");
   });
   it("keeps the previous answer when regeneration fails",async () => {
     await begin(); await finish(); await begin(A,R2); await finish(A,R2,"failed","");

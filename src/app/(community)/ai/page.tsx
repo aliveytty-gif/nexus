@@ -10,5 +10,5 @@ export default async function AiPage() {
   const config = readAgentConfig(process.env);
   return <AiChat key={user.id} enabled={config.enabled && config.ready} dailyLimit={config.userLimit}
     searchEnabled={config.searchEnabled} searchLabel={config.searchProvider === "firecrawl" ? "Firecrawl" : "Brave Search"}
-    providerLabel={config.provider === "openrouter" ? "OpenRouter" : config.provider} />;
+    providerLabel={config.provider === "openrouter" ? "OpenRouter" : config.provider === "groq" ? "Groq" : config.provider} />;
 }

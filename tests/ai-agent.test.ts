@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, mock } from "node:test";
 import { createClient } from "@supabase/supabase-js";
 import { calculate } from "../src/features/ai/agent/calculator.ts";
 import { readAgentConfig } from "../src/features/ai/agent/config.ts";
@@ -20,6 +20,85 @@ const textReply = (text = "Готово") => sse([
   { choices: [{ index: 0, delta: { role: "assistant", reasoning_content: "SECRET_REASONING", content: text }, finish_reason: null }] },
   { choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 21, completion_tokens: 7, total_tokens: 28 } },
 ]);
+
+describe("Groq Free configuration", () => {
+  const env = { AI_PROVIDER: "groq", AI_API_KEY: "synthetic-groq-key", AI_GROQ_FREE_CONFIRMED: "true" };
+  it("rejects a native stream that ends without a final finish reason", async () => {
+    const groq = readAgentConfig(env);
+    const ctx = context();
+    await assert.rejects(runAgent({ ...ctx, config: groq, mode: "quick", models: [groq.model],
+      messages: [{ role: "user", content: "hi" }], memory: "", reserve: async () => 3,
+      fetcher: async () => sse([{ choices: [{ index: 0, delta: { role: "assistant", content: "Частичный ответ" }, finish_reason: null }] }]),
+    }), { code: "incomplete" });
+  });
+  it("requires confirmed Free and official endpoint before enabling model calls", () => {
+    assert.equal(readAgentConfig(env).ready, true);
+    assert.equal(readAgentConfig({ ...env, AI_GROQ_FREE_CONFIRMED: "false" }).ready, false);
+    assert.equal(readAgentConfig({ ...env, AI_ALLOW_PAID: "true" }).ready, false);
+    assert.equal(readAgentConfig({ ...env, AI_API_BASE_URL: "https://example.com/openai/v1" }).ready, false);
+  });
+  it("authenticates catalog lookup and excludes unsupported or inactive tool models", async () => {
+    const groq = readAgentConfig(env);
+    const fetcher: typeof fetch = async (url, options) => {
+      assert.equal(url, "https://api.groq.com/openai/v1/models");
+      assert.equal(new Headers(options?.headers).get("Authorization"), "Bearer synthetic-groq-key");
+      assert.equal(options?.cache, "no-store");
+      return Response.json({ data: [{ id: groq.model, active: true }, { id: "old-text-model", active: true }, { id: "openai/gpt-oss-120b", active: false }] });
+    };
+    assert.deepEqual(await resolveModels(groq, true, signal, fetcher), ["openai/gpt-oss-20b"]);
+    await assert.rejects(resolveModels({ ...groq, model: "old-text-model" }, true, signal, fetcher), { code: "no_compatible_model" });
+    await assert.rejects(resolveModels({ ...groq, model: "openai/gpt-oss-120b" }, true, signal, fetcher), { code: "no_compatible_model" });
+  });
+  it("uses native Groq tool messages and streamed usage while hiding reasoning", async () => {
+    const groq = readAgentConfig(env); const ctx = context(); const events: AgentEvent[] = [];
+    let requests = 0;
+    const answer = await runAgent({ ...ctx, config: groq, mode: "solve", models: [groq.model],
+      messages: [{ role: "user", content: "Сколько 2+2?" }], memory: "", reserve: async () => 3,
+      emit: (event) => events.push(event), fetcher: async (url, options) => {
+        requests++;
+        assert.equal(String(url), "https://api.groq.com/openai/v1/chat/completions");
+        assert.equal(new Headers(options?.headers).get("Authorization"), "Bearer synthetic-groq-key");
+        assert.equal(options?.cache, "no-store");
+        const body = JSON.parse(String(options?.body));
+        assert.equal(body.stream_options, undefined);
+        assert.equal(body.include_reasoning, false);
+        assert.equal(body.reasoning_effort, "low");
+        if (requests === 1) return sse([
+          { choices: [{ index: 0, delta: { role: "assistant", reasoning: "SECRET_GROQ_REASONING", tool_calls: [
+            { index: 0, id: "groq-tool-1", type: "function", function: { name: "calculate", arguments: '{"expression":"2+2"}' } },
+          ] }, finish_reason: null }] },
+          { choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }], x_groq: { usage: { prompt_tokens: 21, completion_tokens: 7, total_tokens: 28 } } },
+        ]);
+        const assistant = body.messages.find((item: { role: string }) => item.role === "assistant");
+        assert.equal(assistant.reasoning, "SECRET_GROQ_REASONING");
+        assert.equal(assistant.reasoning_content, undefined);
+        assert.ok(body.messages.some((item: { role: string }) => item.role === "tool"));
+        return sse([
+          { choices: [{ index: 0, delta: { role: "assistant", reasoning: "SECRET_GROQ_FINAL", content: "4" }, finish_reason: null }] },
+          { choices: [{ index: 0, delta: {}, finish_reason: "stop" }], x_groq: { usage: { prompt_tokens: 31, completion_tokens: 9, total_tokens: 40 } } },
+        ]);
+      },
+    });
+    assert.equal(answer, "4"); assert.equal(requests, 2);
+    assert.equal(ctx.usage.calls, 2); assert.equal(ctx.usage.inputTokens, 52); assert.equal(ctx.usage.outputTokens, 16);
+    assert.equal(ctx.usage.estimatedCostUsd, 0);
+    assert.ok(!JSON.stringify(events).includes("SECRET_GROQ"));
+  });
+  it("sanitizes native Groq SSE rate failures and preserves the last reservation", async () => {
+    const groq = readAgentConfig(env); const ctx = context(); const events: AgentEvent[] = [];
+    await assert.rejects(runAgent({ ...ctx, config: groq, mode: "solve", models: [groq.model],
+      messages: [{ role: "user", content: "hi" }], memory: "", reserve: async () => 0,
+      emit: (event) => events.push(event), fetcher: async (_url, options) => {
+        const body = JSON.parse(String(options?.body));
+        assert.equal(body.tools, undefined);
+        return sse([{ error: { type: "rate_limit_error", message: "PRIVATE_GROQ_DIAGNOSTIC" } }]);
+      },
+    }), { code: "provider_limit" });
+    assert.equal(ctx.usage.calls, 1);
+    assert.ok(!JSON.stringify(events).includes("PRIVATE_GROQ_DIAGNOSTIC"));
+    assert.throws(() => createGuardedModel({ ...groq, freeOnly: false }, [groq.model], newUsage(groq.model), async () => {}, signal, 1), { code: "provider_not_confirmed" });
+  });
+});
 function context() { return { config, db, userId: "11111111-1111-4111-8111-111111111111", signal, question: "Сколько 2+2?", nexusContext: false,
   maxTools: 5, usage: newUsage(config.model), sources: [], actions: [], emit: () => {} }; }
 
@@ -141,6 +220,75 @@ describe("configuration, budgets and tools", () => {
       count++; const body=JSON.parse(String(opts?.body)); assert.ok(!body.tools?.length); return textReply();
     }}); assert.equal(count,1);
   });
+  it("sanitizes rate and budget SSE failures without retrying a partial answer", async () => {
+    for (const code of [429, 402]) {
+      const ctx = context(); const events: AgentEvent[] = [];
+      await assert.rejects(runAgent({ ...ctx, mode: "quick", models: ["openrouter/free", "vendor/b:free"],
+        messages: [{ role: "user", content: "hi" }], memory: "", reserve: async () => 3, emit: (event) => events.push(event),
+        fetcher: async () => sse([
+          { choices: [{ index: 0, delta: { role: "assistant", content: "Начало ответа" }, finish_reason: null }] },
+          { error: { code, message: "PRIVATE_PROVIDER_DIAGNOSTIC" } },
+        ]),
+      }), { code: code === 429 ? "provider_limit" : "provider_budget" });
+      assert.equal(ctx.usage.calls, 1);
+      assert.ok(events.some((event) => event.type === "delta"));
+      assert.ok(!JSON.stringify(events).includes("PRIVATE_PROVIDER_DIAGNOSTIC"));
+    }
+  });
+  it("finishes Research after parallel search, bounded page reads and final synthesis even when one search fails", async () => {
+    const searchQueries: string[] = [];
+    const searchMock = mock.method(globalThis, "fetch", async (url: string | URL | Request) => {
+      const query = new URL(String(url)).searchParams.get("q") || "";
+      searchQueries.push(query);
+      // Independent searches must start together rather than await a slow first query.
+      await Promise.resolve();
+      assert.equal(searchQueries.length, 3);
+      if (query === "second query") return new Response("private upstream error", { status: 500 });
+      return Response.json({ web: { results: [{ url: `https://example.com/${query.split(" ")[0]}`, title: query, description: "Search excerpt" }] } });
+    });
+    const ctx = context();
+    const researchConfig = { ...config, searchProvider: "brave" as const, searchEnabled: true, searchKey: "synthetic-key" };
+    let modelCalls = 0;
+    const toolCallReply = (calls: { name: string; args: unknown }[]) => sse([
+      { choices: [{ index: 0, delta: { role: "assistant", tool_calls: calls.map(({ name, args }, index) => ({ index, id: `tool-${modelCalls}-${index}`, type: "function", function: { name, arguments: JSON.stringify(args) } })) }, finish_reason: null }] },
+      { choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } },
+    ]);
+    try {
+      const answer = await runAgent({ ...ctx, config: researchConfig, maxTools: 3, mode: "research", models: ["openrouter/free"],
+        messages: [{ role: "user", content: "Исследуй тему" }], memory: "", reserve: async () => 4,
+        fetcher: async (_url, options) => {
+          modelCalls++;
+          const body = JSON.parse(String(options?.body));
+          if (modelCalls === 1) {
+            assert.equal(body.tool_choice.function.name, "researchTopic");
+            return toolCallReply([{ name: "researchTopic", args: { topic: "topic", queries: ["first query", "second query", "third query"] } }]);
+          }
+          if (modelCalls === 2) {
+            assert.deepEqual(body.tools.map((item: { function: { name: string } }) => item.function.name), ["readWebPage"]);
+            const material = JSON.parse(body.messages.find((item: { role: string }) => item.role === "tool").content).result;
+            assert.equal(material.sources.length, 2);
+            assert.equal(material.errors[0].query, "second query");
+            assert.equal(material.errors[0].code, "search_unavailable");
+            assert.ok(!JSON.stringify(material).includes("private upstream error"));
+            // Unauthorized page reads fail locally and still leave a final synthesis step.
+            return toolCallReply([
+              { name: "readWebPage", args: { url: "https://unlisted.example.com/one" } },
+              { name: "readWebPage", args: { url: "https://unlisted.example.com/two" } },
+            ]);
+          }
+          assert.equal(body.tools, undefined);
+          const reads = body.messages.filter((item: { role: string; content: string }) => item.role === "tool")
+            .map((item: { content: string }) => JSON.parse(item.content)).filter((item: { error?: string }) => item.error === "url_not_authorized");
+          assert.equal(reads.length, 2);
+          return textReply("Итог по двум доступным источникам. Полные страницы не прочитаны.");
+        },
+      });
+      assert.equal(modelCalls, 3);
+      assert.equal(ctx.usage.toolCalls, 3);
+      assert.equal(ctx.usage.searchCalls, 3);
+      assert.match(answer, /Итог/);
+    } finally { searchMock.mock.restore(); }
+  });
   it("uses the last reserved call for a final answer instead of requesting another tool", async () => {
     const ctx = context();
     const answer = await runAgent({ ...ctx, mode: "solve", models: ["openrouter/free"],
@@ -168,6 +316,32 @@ describe("configuration, budgets and tools", () => {
     let calls=0;
     const model=createGuardedModel(paid,[config.model],newUsage(config.model),async()=>{calls++;},signal,1,async()=>{calls++;return textReply();});
     await assert.rejects(new ToolLoopAgent({model,maxOutputTokens:128,maxRetries:0}).generate({prompt:"hi"}),/бюджет/); assert.equal(calls,0);
+  });
+  it("uses a free fallback for upstream capacity but stops on account limits or budget errors", async () => {
+    const cases = [
+      { status: 429, source: "upstream_provider_shared_pool", expected: null },
+      { status: 429, source: "openrouter_free_tier_per_minute", expected: "provider_limit" },
+      { status: 402, source: "openrouter_key_limit", expected: "provider_budget" },
+    ];
+    for (const item of cases) {
+      const usage = newUsage(config.model);
+      const model = createGuardedModel(config, ["vendor/a:free", "vendor/b:free"], usage,
+        async () => 3, signal, 3, async () => usage.calls === 1
+          ? Response.json({ error: { message: "private upstream diagnostic", metadata: { limit_source: item.source } } }, { status: item.status })
+          : textReply("Готово"));
+      const consume = async () => {
+        const response = await new ToolLoopAgent({ model, maxOutputTokens: 128, maxRetries: 0, onError: () => {} }).stream({ prompt: "hi" });
+        for await (const part of response.fullStream) if (part.type === "error") throw part.error;
+        return response.text;
+      };
+      if (item.expected) {
+        await assert.rejects(consume, { code: item.expected });
+        assert.equal(usage.calls, 1);
+      } else {
+        assert.equal(await consume(), "Готово");
+        assert.equal(usage.calls, 2);
+      }
+    }
   });
 });
 

@@ -25,11 +25,14 @@ export async function POST(request: Request) {
     const start = started.data as unknown as { replay: boolean; turn: AiTurn };
     const controller = new AbortController();
     const signal = AbortSignal.any([request.signal, controller.signal, AbortSignal.timeout(config.timeoutMs)]);
-    let closed = false;
+    let closed = false; let terminal = false;
     const encoder = new TextEncoder();
     const body = new ReadableStream<Uint8Array>({
       async start(stream) {
-        const emit = (event: AgentEvent) => { if (!closed) { try { stream.enqueue(encoder.encode(JSON.stringify(event) + "\n")); } catch { closed = true; controller.abort(); } } };
+        const emit = (event: AgentEvent) => { if (!closed && !terminal) { try {
+          stream.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
+          terminal = event.type === "done" || event.type === "error";
+        } catch { closed = true; controller.abort(); } } };
         const usage = newUsage(config.model); const sources: Source[] = []; const actions: Action[] = [];
         let answer = ""; let completed = false;
         emit({ type: "start", threadId: input.threadId, turnId: input.turnId, runId: input.runId });

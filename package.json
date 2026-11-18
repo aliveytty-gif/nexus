@@ -17,6 +17,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@ai-sdk/groq": "4.0.85",
     "@ai-sdk/openai-compatible": "3.0.92",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.116.0",
