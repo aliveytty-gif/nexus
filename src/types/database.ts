@@ -1,4 +1,5 @@
-// Schema contract through 202610220001_ai_quotas.sql.
+// AI additions: 202611130002_ai_agent.sql (apply before enabling the agent).
+import type { AiTables, AiFunctions } from "./ai-database";
 // Regenerate from your Supabase project after changing migrations (see README).
 export type Json =
   | string
@@ -10,7 +11,7 @@ export type Json =
 
 export type Database = {
   public: {
-    Tables: {
+    Tables: AiTables & {
       ai_quota_settings: {
         Row: { singleton: boolean; user_limit: number; global_limit: number };
         Insert: { singleton?: boolean; user_limit?: number; global_limit?: number };
@@ -490,7 +491,7 @@ export type Database = {
       };
     };
     Views: { [_ in never]: never };
-    Functions: {
+    Functions: AiFunctions & {
       send_message: {
         Args: { p_conversation_id: string; p_client_nonce: string; p_body: string; p_attachments: Json };
         Returns: string;
