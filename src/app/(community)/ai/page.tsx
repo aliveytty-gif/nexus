@@ -7,5 +7,5 @@ export const metadata = { title: "NEXUS AI" };
 export default async function AiPage() {
   await requireUser("/ai");
   const config = getAiConfig();
-  return <AiChat enabled={config.enabled && config.ready} dailyLimit={config.userLimit} />;
+  return <AiChat enabled={config.enabled && config.ready} dailyLimit={config.userLimit} provider={config.provider} />;
 }

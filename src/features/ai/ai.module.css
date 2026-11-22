@@ -6,6 +6,10 @@
 .heading button { flex-shrink: 0; }
 .limit { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--primary-hover); font-size: .8rem; }
 .limit span { color: var(--muted); }
+.connection { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); font-size: .78rem; }
+.connection .connected { color: #a5d9b5; }
+.connection .copy { min-height: 34px; }
+.streamStatus { margin-top: 12px; color: var(--muted); font-size: .78rem; line-height: 1.6; }
 .conversation { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
 .welcome { display: grid; justify-items: center; gap: 12px; padding: 38px 16px; text-align: center; border: 1px solid var(--border); border-radius: 16px; background: radial-gradient(ellipse at 50% 0, #7c83ff17, transparent 65%), var(--surface); }
 .sparkle { display: grid; place-items: center; width: 58px; height: 58px; border: 1px solid #7c83ff4d; border-radius: 18px; color: var(--primary-hover); background: #7c83ff14; }
