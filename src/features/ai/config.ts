@@ -1,15 +1,31 @@
 import "server-only";
 
 export type AiConfig = {
-  enabled: boolean; ready: boolean; provider: "openrouter" | "ollama";
+  enabled: boolean; ready: boolean; provider: "openrouter" | "ollama" | "zerogpu";
   apiKey: string; model: string; fallbackModel: string;
   userLimit: number; globalLimit: number; maxOutputTokens: number;
-  ollamaUrl: string;
+  ollamaUrl: string; zeroGpuToken: string;
 };
 const integer = (value: string | undefined, fallback: number, max: number) =>
   value && /^\d+$/.test(value) ? Math.min(max, Math.max(1, Number(value))) : fallback;
 
 export function getAiConfig(): AiConfig {
+  if (process.env.AI_PROVIDER === "zerogpu") {
+    const zeroGpuToken = process.env.AI_ZEROGPU_HF_TOKEN?.trim() ?? "";
+    return {
+      enabled: process.env.AI_ENABLED === "true",
+      ready: /^hf_[a-zA-Z0-9]{20,100}$/.test(zeroGpuToken),
+      provider: "zerogpu",
+      zeroGpuToken,
+      apiKey: "",
+      ollamaUrl: "",
+      model: "Qwen/Qwen3.5-2B",
+      fallbackModel: "",
+      userLimit: integer(process.env.AI_DAILY_USER_LIMIT, 3, 3),
+      globalLimit: integer(process.env.AI_DAILY_GLOBAL_LIMIT, 8, 8),
+      maxOutputTokens: integer(process.env.AI_MAX_OUTPUT_TOKENS, 96, 128),
+    };
+  }
   const provider = process.env.AI_PROVIDER === "ollama" ? "ollama" : "openrouter";
   const apiKey = process.env.OPENROUTER_API_KEY?.trim() ?? "";
   let ollamaUrl = "";
@@ -29,6 +45,6 @@ export function getAiConfig(): AiConfig {
     userLimit: integer(process.env.AI_DAILY_USER_LIMIT, 5, 50),
     globalLimit: integer(process.env.AI_DAILY_GLOBAL_LIMIT, 40, 50),
     maxOutputTokens: integer(process.env.AI_MAX_OUTPUT_TOKENS, 400, 1200),
-    ollamaUrl,
+    ollamaUrl, zeroGpuToken: "",
   };
 }

@@ -72,6 +72,7 @@
 .markdown input[type="checkbox"] { accent-color: var(--primary); margin-right: 6px; }
 .latest { position: fixed; bottom: calc(24px + env(safe-area-inset-bottom)); right: 24px; z-index: 20; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 14px; min-height: 40px; border: 1px solid var(--border); background: var(--surface); color: #c6cced; border-radius: 20px; box-shadow: 0 4px 20px #0005; font-size: .78rem; cursor: pointer; }
 .copyError { color: var(--muted); font-size: .75rem; }
+.streamStatus { color: var(--muted); font-size: .8rem; margin: 8px 0; }
 .generating { display: flex; align-items: center; gap: 12px; min-height: 44px; color: var(--muted); font-size: .84rem; padding: 4px; }
 .generatingDots { display: inline-flex; gap: 4px; align-items: center; }
 .generatingDots i { display: block; width: 5px; height: 5px; border-radius: 50%; background: #a9afff; animation: dotPulse 1.2s ease-in-out infinite; }

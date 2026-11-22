@@ -1,4 +1,4 @@
-export type ChatMessage = { id: number; role: "user" | "assistant"; content: string };
+export type ChatMessage = { id: number; role: "user" | "assistant"; content: string; status?: string };
 
 export function requestMessages(messages: ChatMessage[], content: string) {
   const previous: { role: "user" | "assistant"; content: string }[] = [];
