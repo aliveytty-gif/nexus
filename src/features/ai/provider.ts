@@ -21,6 +21,7 @@ export function selectFreeModels(catalog: unknown, preferred: string, fallback: 
 }
 
 export async function availableModels(config: AiConfig, signal?: AbortSignal, fetcher: typeof fetch = fetch) {
+  if (config.provider === "zerogpu") return [config.model];
   if (config.provider === "ollama") {
     if (!config.ollamaUrl) throw new AiError("not_configured", "Локальная модель недоступна.");
     return [config.model];
@@ -41,6 +42,7 @@ export async function availableModels(config: AiConfig, signal?: AbortSignal, fe
 }
 
 export async function generateReply(config: AiConfig, model: string, messages: AiMessage[], signal?: AbortSignal, fetcher: typeof fetch = fetch) {
+  if (config.provider === "zerogpu") throw new AiError("not_configured", "Модель ZeroGPU доступна только в режиме потока.");
   if (config.provider === "openrouter" && !freeModelId(model))
     throw new AiError("paid_model_blocked", "Платная модель заблокирована.");
   const local = config.provider === "ollama";
