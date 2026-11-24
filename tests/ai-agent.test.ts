@@ -235,7 +235,7 @@ describe("configuration, budgets and tools", () => {
       assert.ok(!JSON.stringify(events).includes("PRIVATE_PROVIDER_DIAGNOSTIC"));
     }
   });
-  it("finishes Research after parallel search, bounded page reads and final synthesis even when one search fails", async () => {
+  for (const provider of ["openrouter", "groq"] as const) it(`${provider} finishes Research after parallel search and bounded page reads even when one search fails`, async () => {
     const searchQueries: string[] = [];
     const searchMock = mock.method(globalThis, "fetch", async (url: string | URL | Request) => {
       const query = new URL(String(url)).searchParams.get("q") || "";
@@ -247,15 +247,23 @@ describe("configuration, budgets and tools", () => {
       return Response.json({ web: { results: [{ url: `https://example.com/${query.split(" ")[0]}`, title: query, description: "Search excerpt" }] } });
     });
     const ctx = context();
-    const researchConfig = { ...config, searchProvider: "brave" as const, searchEnabled: true, searchKey: "synthetic-key" };
+    const isGroq = provider === "groq";
+    const providerConfig = isGroq
+      ? readAgentConfig({ AI_PROVIDER: "groq", AI_API_KEY: "synthetic-groq-key", AI_GROQ_FREE_CONFIRMED: "true" })
+      : config;
+    const researchConfig = { ...providerConfig, searchProvider: "brave" as const, searchEnabled: true, searchKey: "synthetic-key" };
+    const question = "Исследуй тему";
+    const usage = { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 };
+    const usageChunk = isGroq ? { x_groq: { usage } } : { usage };
+    const modelReply = (chunks: Record<string, unknown>[]) => sse(chunks.map((chunk) => ({ model: researchConfig.model, ...chunk })));
     let modelCalls = 0;
-    const toolCallReply = (calls: { name: string; args: unknown }[]) => sse([
+    const toolCallReply = (calls: { name: string; args: unknown }[]) => modelReply([
       { choices: [{ index: 0, delta: { role: "assistant", tool_calls: calls.map(({ name, args }, index) => ({ index, id: `tool-${modelCalls}-${index}`, type: "function", function: { name, arguments: JSON.stringify(args) } })) }, finish_reason: null }] },
-      { choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } },
+      { choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }], ...usageChunk },
     ]);
     try {
-      const answer = await runAgent({ ...ctx, config: researchConfig, maxTools: 3, mode: "research", models: ["openrouter/free"],
-        messages: [{ role: "user", content: "Исследуй тему" }], memory: "", reserve: async () => 4,
+      const answer = await runAgent({ ...ctx, config: researchConfig, maxTools: 3, mode: "research", models: [researchConfig.model],
+        messages: [{ role: "user", content: question }], memory: "", reserve: async () => 4,
         fetcher: async (_url, options) => {
           modelCalls++;
           const body = JSON.parse(String(options?.body));
@@ -277,6 +285,28 @@ describe("configuration, budgets and tools", () => {
             ]);
           }
           assert.equal(body.tools, undefined);
+          if (isGroq) {
+            const finalMessages: { role: string; content: string; tool_calls?: unknown }[] = body.messages;
+            assert.ok(finalMessages.every((message) => message.role !== "tool" && message.tool_calls === undefined));
+            const userMessages = finalMessages.filter((message) => message.role === "user");
+            assert.equal(userMessages[0]?.content, question);
+            assert.equal(userMessages.length, 2);
+            const evidence = JSON.parse(userMessages[1].content).researchEvidence;
+            assert.deepEqual(evidence.map(({ toolName }: { toolName: string }) => toolName),
+              ["researchTopic", "readWebPage", "readWebPage"]);
+            assert.deepEqual(evidence[0].output.result.sources.map(({ url }: { url: string }) => url),
+              ["https://example.com/first", "https://example.com/third"]);
+            assert.equal(evidence[0].output.result.errors[0].code, "search_unavailable");
+            assert.equal(evidence[1].output.error, "url_not_authorized");
+            assert.equal(evidence[2].output.error, "url_not_authorized");
+            assert.ok(!userMessages[1].content.includes("private upstream error"));
+            assert.match(finalMessages[0].content, /Инструменты недоступны/);
+            assert.equal(body.temperature, 0.2);
+            return modelReply([
+              { choices: [{ index: 0, delta: { role: "assistant", content: "Итог по двум доступным источникам." }, finish_reason: null }] },
+              { choices: [{ index: 0, delta: {}, finish_reason: "stop" }], ...usageChunk },
+            ]);
+          }
           const reads = body.messages.filter((item: { role: string; content: string }) => item.role === "tool")
             .map((item: { content: string }) => JSON.parse(item.content)).filter((item: { error?: string }) => item.error === "url_not_authorized");
           assert.equal(reads.length, 2);
@@ -284,8 +314,13 @@ describe("configuration, budgets and tools", () => {
         },
       });
       assert.equal(modelCalls, 3);
+      assert.equal(ctx.usage.calls, 3);
       assert.equal(ctx.usage.toolCalls, 3);
       assert.equal(ctx.usage.searchCalls, 3);
+      if (isGroq) {
+        assert.equal(ctx.usage.inputTokens, 60);
+        assert.equal(ctx.usage.outputTokens, 30);
+      }
       assert.match(answer, /Итог/);
     } finally { searchMock.mock.restore(); }
   });
