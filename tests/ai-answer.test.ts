@@ -13,6 +13,7 @@ async function loadAnswer() {
   const directory = await mkdtemp(fileURLToPath(new URL(".tmp-ai-answer-", import.meta.url)));
   try {
     const source = (await readFile(new URL("../src/features/ai/answer.tsx", import.meta.url), "utf8"))
+      .replace('from "./agent/contracts"', 'from "../../src/features/ai/agent/contracts.ts"')
       .replace('import styles from "./ai.module.css";', 'const styles = new Proxy({}, { get: (_, key) => String(key) });');
     const output = ts.transpileModule(source, {
       compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
