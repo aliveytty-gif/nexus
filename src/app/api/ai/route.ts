@@ -1,6 +1,7 @@
 import { readAgentConfig } from "@/features/ai/agent/config";
 import { requestSchema, modeSettings, validSources, type Action, type AgentEvent, type Source } from "@/features/ai/agent/contracts";
 import { authenticatedAi, errorResponse, safeFailure } from "@/features/ai/agent/http";
+import { failureDiagnostic } from "@/features/ai/agent/diagnostics";
 import { newUsage, resolveModels, runAgent } from "@/features/ai/agent/engine";
 import { conversationContext } from "@/features/ai/agent/context";
 import { AiError, boundedJson } from "@/features/ai/validation";
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
         } catch { closed = true; controller.abort(); } } };
         const usage = newUsage(config.model); const sources: Source[] = []; const actions: Action[] = [];
         let answer = ""; let completed = false;
+        let stage: "load_context" | "summarize" | "run_agent" | "save_answer" = "load_context";
         emit({ type: "start", threadId: input.threadId, turnId: input.turnId, runId: input.runId });
         try {
           if (start.replay) {
@@ -59,15 +61,18 @@ export async function POST(request: Request) {
             if (!quota.allowed) throw new AiError(quota.code || "rate_limit", quota.code === "user_limit" ? "Твой дневной лимит обращений к модели исчерпан." : quota.code === "global_limit" ? "Общий дневной лимит AI исчерпан." : "Сейчас превышен лимит запросов. Подожди немного.", 429);
             return Math.min(quota.user_remaining ?? 0, quota.global_remaining ?? 0, quota.minute_remaining ?? 0);
           };
+          stage = "summarize";
           const context = await conversationContext({ thread: threadResult.data, turns: (turnsResult.data || []).reverse(), question: input.question, config, models, usage,
             reserve: () => reserve(1), signal, summarize: input.mode !== "quick" });
           emit({ type: "status", text: input.mode === "quick" ? "Готовлю короткий ответ…" : "Выбираю действия для твоего вопроса…" });
+          stage = "run_agent";
           answer = await runAgent({ config, db, userId: user.id, question: input.question, mode: input.mode, models,
             nexusContext: input.nexusContext, signal, usage, sources, actions, emit, reserve,
             maxTools: Math.min(config.maxToolCalls, modeSettings[input.mode].tools), messages: context.messages,
             memory: memoryResult.data?.enabled ? memoryResult.data.content : "",
           });
           signal.throwIfAborted();
+          stage = "save_answer";
           const saved = await db.rpc("finish_ai_turn", { p_turn_id: input.turnId, p_run_id: input.runId, p_status: "complete", p_answer: answer,
             p_sources: sources as unknown as Json, p_actions: actions as unknown as Json, p_usage: usage as unknown as Json,
             ...(context.summaryThrough ? { p_summary: context.summary, p_summary_through: context.summaryThrough } : {}),
@@ -76,7 +81,7 @@ export async function POST(request: Request) {
           completed = true; emit({ type: "done", answer, sources, usage });
         } catch (error) {
           const safe = safeFailure(error);
-          console.warn("nexus_ai", { code: safe.code, runId: input.runId });
+          console.warn("nexus_ai", { code: safe.code, runId: input.runId, stage, ...failureDiagnostic(error) });
           emit({ type: "error", code: safe.code, message: safe.message });
           if (!start.replay) {
             const result = await db.rpc("finish_ai_turn", { p_turn_id: input.turnId, p_run_id: input.runId,
